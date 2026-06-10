@@ -1819,10 +1819,11 @@ async function loadQuizList() {
   el.innerHTML= dlAllBtn + `<table class="data-table"><thead><tr><th>시리즈</th><th>권</th><th>문제 수</th><th>수정</th><th>받기</th><th>삭제</th></tr></thead><tbody>
     ${quizzes.map(q=>{
       const series = allSeries.find(s=>s.id===q.seriesId);
-      const titleTip = series?.bookTitles?.[q.bookNum] ? ` title="${series.bookTitles[q.bookNum]}" style="cursor:help;text-decoration:underline dotted;text-underline-offset:3px"` : '';
+      const bookTitle = series?.bookTitles?.[q.bookNum] || '';
+      const infoBtn = bookTitle ? ` <button onclick="toast('${bookTitle.replace(/'/g,"\\'")}','info')" style="background:none;border:none;cursor:pointer;font-size:.85rem;padding:0;line-height:1;vertical-align:middle;opacity:.7" title="${bookTitle}">ℹ️</button>` : '';
       return `<tr>
         <td>${q.seriesName}</td>
-        <td><span${titleTip}>${q.bookNum}권</span></td>
+        <td><span style="white-space:nowrap">${q.bookNum}권${infoBtn}</span></td>
         <td><span class="badge badge-blue">${q.questions?.length||0}개</span></td>
         <td><button class="btn btn-secondary btn-sm" style="padding:.28rem .6rem;font-size:.75rem" data-quiz-id="${q.id}" onclick="openQuizPreview(this.dataset.quizId)">👁 수정</button></td>
         <td><button class="btn btn-secondary btn-sm" style="padding:.28rem .6rem;font-size:.75rem" data-quiz-id="${q.id}" onclick="downloadQuiz(this.dataset.quizId)">⬇️</button></td>
