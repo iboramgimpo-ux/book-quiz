@@ -1,0 +1,2512 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>독서퀴즈 📚</title>
+
+<!-- Firebase Compat SDK (모듈 방식 대신 전통 방식 사용 - 로딩 문제 해결) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script>
+  firebase.initializeApp({
+    apiKey: "AIzaSyCPa5LJHQV-nm4F3djEL1481htlJlrE0hU",
+    authDomain: "book-quiz-5cfec.firebaseapp.com",
+    projectId: "book-quiz-5cfec",
+    storageBucket: "book-quiz-5cfec.firebasestorage.app",
+    messagingSenderId: "352729909403",
+    appId: "1:352729909403:web:8cbc1b592995bc2fe91e3e"
+  });
+  const db = firebase.firestore();
+</script>
+
+<!-- mammoth(docx파서)와 폰트는 관리자 전용 — 학생 접속 시 스킵해서 로딩 속도 개선 -->
+<script>
+  (function() {
+    const isStudent = new URLSearchParams(location.search).get('student');
+    if (!isStudent) {
+      // mammoth.js — 관리자만 필요
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';
+      document.head.appendChild(s);
+      // Google Fonts — 관리자만 로드
+      const l = document.createElement('link');
+      l.rel = 'stylesheet';
+      l.href = 'https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&family=Space+Mono:wght@400;700&display=swap';
+      document.head.appendChild(l);
+    }
+  })();
+</script>
+
+<style>
+:root {
+  --bg:#0f1117;--surface:#1a1d27;--surface2:#22263a;--border:#2e3350;
+  --accent:#6c8fff;--accent2:#ff7eb3;--text:#e8eaf6;--text-dim:#8892b0;
+  --danger:#ff5c5c;--success:#4cffb0;--warning:#ffc14f;
+  --radius:14px;--shadow:0 8px 32px rgba(0,0,0,0.4);
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Noto Sans KR',-apple-system,BlinkMacSystemFont,'Malgun Gothic','맑은 고딕',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6;}
+.page{display:none;min-height:100vh;}.page.active{display:block;}
+body.ready .page.active{display:block;}
+
+.app-header{background:var(--surface);border-bottom:1px solid var(--border);padding:0 2rem;display:flex;align-items:center;justify-content:space-between;height:64px;position:sticky;top:0;z-index:100;}
+.app-logo{font-family:'Space Mono',monospace;font-size:1.2rem;color:var(--accent);letter-spacing:-1px;}
+.app-logo span{color:var(--accent2);}
+
+.btn{padding:.55rem 1.2rem;border-radius:8px;border:none;cursor:pointer;font-family:'Noto Sans KR',sans-serif;font-size:.875rem;font-weight:500;transition:all .18s;display:inline-flex;align-items:center;gap:.4rem;}
+.btn-primary{background:var(--accent);color:#fff;}.btn-primary:hover{background:#849fff;transform:translateY(-1px);}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border);}.btn-secondary:hover{border-color:var(--accent);color:var(--accent);}
+.btn-danger{background:transparent;color:var(--danger);border:1px solid var(--danger);}.btn-danger:hover{background:var(--danger);color:#fff;}
+.btn-success{background:var(--success);color:#000;}
+.btn-sm{padding:.35rem .8rem;font-size:.8rem;}
+.btn:disabled{opacity:.4;cursor:not-allowed;transform:none!important;}
+
+.admin-layout{display:grid;grid-template-columns:240px 1fr;min-height:calc(100vh - 64px);}
+.admin-sidebar{background:var(--surface);border-right:1px solid var(--border);padding:1.5rem 1rem;}
+.sidebar-nav{display:flex;flex-direction:column;gap:.25rem;}
+.nav-item{padding:.65rem 1rem;border-radius:8px;cursor:pointer;color:var(--text-dim);font-size:.9rem;transition:all .15s;display:flex;align-items:center;gap:.6rem;}
+.nav-item:hover{background:var(--surface2);color:var(--text);}
+.nav-item.active{background:rgba(108,143,255,.15);color:var(--accent);}
+.admin-main{padding:2rem;}
+.section-title{font-size:1.4rem;font-weight:700;margin-bottom:1.5rem;display:flex;align-items:center;gap:.5rem;}
+.section-title::before{content:'';display:inline-block;width:4px;height:1.4rem;background:var(--accent);border-radius:2px;}
+
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin-bottom:1rem;}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;}
+
+.stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:1rem;margin-bottom:2rem;}
+.stat-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem;text-align:center;}
+.stat-num{font-size:2rem;font-weight:900;color:var(--accent);}
+.stat-label{font-size:.8rem;color:var(--text-dim);margin-top:.25rem;}
+
+.data-table{width:100%;border-collapse:collapse;}
+.data-table th{text-align:left;padding:.75rem 1rem;font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-dim);border-bottom:1px solid var(--border);}
+.data-table td{padding:.85rem 1rem;border-bottom:1px solid rgba(46,51,80,.4);font-size:.9rem;}
+.data-table tr:last-child td{border-bottom:none;}
+.data-table tr:hover td{background:rgba(108,143,255,.04);}
+
+.badge{display:inline-flex;align-items:center;padding:.2rem .6rem;border-radius:100px;font-size:.75rem;font-weight:500;}
+.badge-green{background:rgba(76,255,176,.15);color:var(--success);}
+.badge-blue{background:rgba(108,143,255,.15);color:var(--accent);}
+.badge-red{background:rgba(255,92,92,.15);color:var(--danger);}
+.badge-yellow{background:rgba(255,193,79,.15);color:var(--warning);}
+
+.form-group{margin-bottom:1rem;}
+.form-label{display:block;font-size:.85rem;color:var(--text-dim);margin-bottom:.4rem;}
+.form-input,.form-select,.form-textarea{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.65rem .9rem;color:var(--text);font-family:'Noto Sans KR',sans-serif;font-size:.9rem;transition:border-color .15s;}
+.form-input:focus,.form-select:focus,.form-textarea:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(108,143,255,.15);}
+.form-textarea{resize:vertical;min-height:200px;}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:200;align-items:center;justify-content:center;}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:2rem;width:100%;max-width:560px;max-height:90vh;overflow-y:auto;box-shadow:var(--shadow);animation:slideUp .2s ease;}
+@keyframes slideUp{from{transform:translateY(20px);opacity:0;}}
+.modal-title{font-size:1.2rem;font-weight:700;margin-bottom:1.5rem;display:flex;align-items:center;justify-content:space-between;}
+.modal-close{cursor:pointer;background:none;border:none;color:var(--text-dim);font-size:1.3rem;}
+.modal-close:hover{color:var(--text);}
+.modal-footer{display:flex;gap:.75rem;justify-content:flex-end;margin-top:1.5rem;}
+
+.upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:2rem;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:1rem;}
+.upload-zone:hover,.upload-zone.dragover{border-color:var(--accent);background:rgba(108,143,255,.05);}
+.upload-icon{font-size:2.5rem;margin-bottom:.5rem;}
+
+.parsed-preview{background:var(--bg);border-radius:8px;padding:1rem;margin-top:1rem;max-height:300px;overflow-y:auto;}
+.parsed-q{padding:.6rem;border-bottom:1px solid var(--border);font-size:.85rem;}
+.parsed-q:last-child{border-bottom:none;}
+.parsed-a{color:var(--success);font-weight:700;}
+
+.link-box{background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.6rem .9rem;font-family:'Space Mono',monospace;font-size:.78rem;color:var(--accent);word-break:break-all;}
+
+.tabs{display:flex;gap:.25rem;margin-bottom:1.5rem;flex-wrap:wrap;}
+.tab{padding:.55rem 1.2rem;border-radius:8px;cursor:pointer;font-size:.875rem;color:var(--text-dim);transition:all .15s;border:1px solid transparent;}
+.tab:hover{color:var(--text);}
+.tab.active{background:var(--surface2);border-color:var(--border);color:var(--accent);}
+.tab-content{display:none;}.tab-content.active{display:block;}
+
+.student-header{background:var(--surface);border-bottom:1px solid var(--border);padding:1rem 2rem;display:flex;align-items:center;gap:1rem;}
+.student-name-tag{background:rgba(108,143,255,.15);color:var(--accent);border-radius:100px;padding:.3rem .9rem;font-size:.85rem;font-weight:700;}
+.quiz-container{max-width:780px;margin:0 auto;padding:2rem 1.5rem;}
+
+.series-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:1rem;margin-bottom:2rem;}
+.series-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.2rem;cursor:pointer;transition:all .2s;text-align:center;}
+.series-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 8px 20px rgba(108,143,255,.2);}
+.series-icon{font-size:2rem;margin-bottom:.5rem;}
+.series-name{font-weight:700;font-size:.95rem;}
+.series-count{font-size:.8rem;color:var(--text-dim);margin-top:.25rem;}
+
+.level-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1.25rem;margin-bottom:2rem;}
+.level-card{border-radius:var(--radius);padding:1.8rem 1.5rem;cursor:pointer;transition:all .2s;text-align:center;border:2px solid transparent;position:relative;overflow:hidden;}
+.level-card:hover{transform:translateY(-3px);box-shadow:0 12px 28px rgba(0,0,0,0.35);}
+.level-card .level-num{font-family:'Space Mono',monospace;font-size:2.5rem;font-weight:900;margin-bottom:.3rem;}
+.level-card .level-label{font-size:1rem;font-weight:700;margin-bottom:.4rem;}
+.level-card .level-desc{font-size:.8rem;opacity:.75;}
+.level-card .level-count{font-size:.78rem;margin-top:.6rem;opacity:.7;}
+.level-1{background:linear-gradient(135deg,#1a2a4a,#1e3a5f);border-color:#4a9fff;}
+.level-1 .level-num{color:#4a9fff;}
+.level-2{background:linear-gradient(135deg,#1a3a2a,#1e5a3a);border-color:#4aff9f;}
+.level-2 .level-num{color:#4aff9f;}
+.level-3{background:linear-gradient(135deg,#3a2a1a,#5a3a1e);border-color:#ffb44a;}
+.level-3 .level-num{color:#ffb44a;}
+.level-4{background:linear-gradient(135deg,#3a1a2a,#5a1e3a);border-color:#ff4a9f;}
+.level-4 .level-num{color:#ff4a9f;}
+
+.book-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:.75rem;}
+.book-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem;cursor:pointer;text-align:center;transition:all .2s;position:relative;}
+.book-item:hover{border-color:var(--accent);transform:translateY(-2px);}
+.book-num{font-size:1.4rem;font-weight:900;color:var(--accent);}
+.book-done{position:absolute;top:5px;right:5px;font-size:.65rem;}
+.book-item.completed{border-color:rgba(76,255,176,.3);}
+.book-item.completed .book-num{color:var(--success);}
+
+.quiz-progress{display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;}
+.progress-bar{flex:1;height:6px;background:var(--border);border-radius:100px;overflow:hidden;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:100px;transition:width .3s;}
+
+.question-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;margin-bottom:1rem;animation:fadeIn .25s ease;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px);}}
+.question-num{font-size:.8rem;color:var(--text-dim);font-family:'Space Mono',monospace;margin-bottom:.75rem;}
+.question-text{font-size:1.05rem;font-weight:500;line-height:1.7;margin-bottom:1.5rem;}
+
+.options-grid{display:flex;flex-direction:column;gap:.6rem;}
+.option-btn{display:flex;align-items:flex-start;gap:.75rem;padding:.9rem 1rem;background:var(--bg);border:1px solid var(--border);border-radius:10px;cursor:pointer;text-align:left;width:100%;color:var(--text);font-family:'Noto Sans KR',sans-serif;font-size:.9rem;transition:all .15s;}
+.option-btn:hover:not([disabled]){border-color:var(--accent);background:rgba(108,143,255,.05);}
+.option-btn.selected{border-color:var(--accent);background:rgba(108,143,255,.15);}
+.option-btn.correct{border-color:var(--success);background:rgba(76,255,176,.1);color:var(--success);}
+.option-btn.wrong{border-color:var(--danger);background:rgba(255,92,92,.1);color:var(--danger);}
+.option-key{font-family:'Space Mono',monospace;font-weight:700;font-size:.85rem;min-width:20px;color:var(--accent);flex-shrink:0;}
+.option-btn.correct .option-key{color:var(--success);}
+.option-btn.wrong .option-key{color:var(--danger);}
+
+.result-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem;text-align:center;}
+.result-score{font-size:4rem;font-weight:900;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:1rem 0;}
+.result-msg{font-size:1.1rem;color:var(--text-dim);}
+
+#toast{position:fixed;bottom:2rem;right:2rem;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:.85rem 1.2rem;font-size:.9rem;z-index:999;transform:translateY(80px);opacity:0;transition:all .3s;max-width:300px;}
+#toast.show{transform:translateY(0);opacity:1;}
+#toast.success{border-color:var(--success);color:var(--success);}
+#toast.error{border-color:var(--danger);color:var(--danger);}
+
+.empty-state{text-align:center;padding:3rem;color:var(--text-dim);font-size:.9rem;}
+.empty-icon{font-size:3rem;margin-bottom:1rem;}
+.separator{border:none;border-top:1px solid var(--border);margin:1.5rem 0;}
+.text-dim{color:var(--text-dim);}.text-sm{font-size:.85rem;}.mt-1{margin-top:1rem;}
+
+.breadcrumb{display:flex;align-items:center;gap:.5rem;font-size:.85rem;color:var(--text-dim);margin-bottom:1.5rem;}
+.breadcrumb span{cursor:pointer;}.breadcrumb span:hover{color:var(--accent);}
+.breadcrumb .sep{color:var(--border);}
+
+.center-screen{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:2rem;}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem;width:100%;max-width:400px;text-align:center;overflow:visible;}
+.login-icon{font-size:3rem;margin-bottom:1rem;}
+.login-title{font-size:1.4rem;font-weight:700;margin-bottom:.5rem;}
+.login-sub{color:var(--text-dim);font-size:.85rem;margin-bottom:1.5rem;}
+
+.result-detail-item{display:flex;align-items:flex-start;gap:.75rem;padding:.75rem;border-bottom:1px solid var(--border);font-size:.875rem;}
+.result-detail-item:last-child{border-bottom:none;}
+.result-detail-item.wrong-item:hover{background:rgba(255,92,92,0.04);border-radius:8px;}
+.result-detail-item.wrong-item:active{background:rgba(255,92,92,0.08);}
+.q-indicator{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:.75rem;font-weight:700;flex-shrink:0;}
+.q-correct{background:rgba(76,255,176,.15);color:var(--success);}
+.q-wrong{background:rgba(255,92,92,.15);color:var(--danger);}
+
+.admin-section{display:none;}.admin-section.active{display:block;}
+
+/* 시간표 */
+.timetable{border-collapse:collapse;width:100%;min-width:700px;font-size:.82rem;}
+.timetable th{background:var(--surface2);border:1px solid var(--border);padding:.5rem .4rem;text-align:center;font-weight:700;color:var(--text-dim);white-space:nowrap;}
+.timetable td{border:1px solid var(--border);padding:.4rem;vertical-align:top;min-width:110px;min-height:60px;}
+.timetable td .time-label{font-family:'Space Mono',monospace;font-size:.72rem;color:var(--text-dim);margin-bottom:.25rem;}
+.tt-student{display:inline-flex;align-items:center;gap:.3rem;background:rgba(108,143,255,.15);color:var(--accent);border-radius:100px;padding:.15rem .55rem;font-size:.78rem;cursor:pointer;margin:.1rem;transition:all .15s;}
+.tt-student:hover{background:rgba(108,143,255,.3);}
+.tt-add-btn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--surface2);border:1px dashed var(--border);color:var(--text-dim);cursor:pointer;font-size:.9rem;transition:all .15s;margin:.1rem;}
+.tt-add-btn:hover{border-color:var(--accent);color:var(--accent);}
+
+/* 학생 정보 테이블 */
+.student-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:.5rem .75rem;font-size:.875rem;}
+.student-info-grid .info-label{color:var(--text-dim);font-size:.78rem;}
+.student-info-grid .info-val{font-weight:500;}
+::-webkit-scrollbar{width:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+
+/* ── 항상 모바일 레이아웃 */
+.admin-layout{grid-template-columns:1fr;}
+.admin-sidebar{display:none;}
+.form-row{grid-template-columns:1fr;}
+.quiz-container{padding:1rem;}
+.admin-main{padding:1rem;padding-bottom:76px;}
+.app-header{padding:0 1rem;}
+.app-header .app-logo{font-size:1rem;}
+.mobile-tabbar{
+  display:flex !important;
+  position:fixed !important;
+  bottom:0 !important;
+  left:0 !important;
+  right:0 !important;
+  width:100vw !important;
+  background:var(--surface);
+  border-top:1px solid var(--border);
+  z-index:9999 !important;
+  height:60px !important;
+  box-sizing:border-box !important;
+}
+.mobile-tab{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;cursor:pointer;color:var(--text-dim);
+  font-size:11px;
+  padding:.4rem .2rem;border:none;background:none;
+  -webkit-tap-highlight-color:transparent;
+}
+.mobile-tab .tab-icon{font-size:22px;line-height:1;}
+.mobile-tab.active{color:var(--accent);}
+.card{overflow-x:auto;}
+.data-table{min-width:500px;}
+.section-title{font-size:1.1rem;}
+.stats-row{grid-template-columns:1fr 1fr;}
+@media(max-width:700px){
+  /* 모달 모바일 최적화 */
+  .modal{margin:.5rem;max-height:85vh;}
+  /* 버튼 더 크게 */
+  .btn-sm{padding:.45rem .9rem;font-size:.82rem;}
+}
+</style>
+<script>
+// 핀치줌 완전 차단
+document.addEventListener('touchmove', function(e) {
+  if (e.touches.length > 1) e.preventDefault();
+}, { passive: false });
+document.addEventListener('gesturestart', function(e) {
+  e.preventDefault();
+}, { passive: false });
+</script>
+<script>
+// visualViewport로 탭바를 실제 보이는 화면 하단에 항상 고정
+function repositionTabbar() {
+  var tabbar = document.querySelector('.mobile-tabbar');
+  if (!tabbar) return;
+  var vv = window.visualViewport;
+  if (!vv) return;
+  tabbar.style.width = vv.width + 'px';
+  tabbar.style.left = vv.offsetLeft + 'px';
+  tabbar.style.top = (vv.offsetTop + vv.height - 60) + 'px';
+  tabbar.style.bottom = 'auto';
+}
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', repositionTabbar);
+  window.visualViewport.addEventListener('scroll', repositionTabbar);
+}
+window.addEventListener('load', repositionTabbar);
+</script>
+</head>
+<body>
+
+<div id="admin-login-page" class="page">
+  <div class="center-screen">
+    <div class="login-box">
+      <div class="login-icon">🔐</div>
+      <div class="login-title">관리자 로그인</div>
+      <div class="login-sub">독서퀴즈 관리자 페이지</div>
+      <div class="form-group">
+        <input type="password" class="form-input" id="admin-pw-input" placeholder="관리자 비밀번호" onkeydown="if(event.key==='Enter')adminLogin()">
+      </div>
+      <button class="btn btn-primary" style="width:100%" onclick="adminLogin()">로그인</button>
+      <div id="login-error" style="color:var(--danger);font-size:.85rem;margin-top:.75rem;display:none"></div>
+    </div>
+  </div>
+</div>
+
+<div id="admin-page" class="page">
+  <header class="app-header">
+    <div class="app-logo">📚 독서<span>퀴즈</span> <small style="font-size:.7rem;color:var(--text-dim)">관리자</small></div>
+    <button class="btn btn-secondary btn-sm" onclick="adminLogout()">로그아웃</button>
+  </header>
+  <div class="admin-layout">
+    <aside class="admin-sidebar">
+      <nav class="sidebar-nav">
+        <div class="nav-item active" id="nav-dashboard" onclick="showSection('dashboard')"><span>📊</span> 대시보드</div>
+        <div class="nav-item" id="nav-students" onclick="showSection('students')"><span>👤</span> 학생 관리</div>
+        <div class="nav-item" id="nav-timetable" onclick="showSection('timetable')"><span>🗓</span> 시간표</div>
+        <div class="nav-item" id="nav-books" onclick="showSection('books')"><span>📖</span> 책/퀴즈 관리</div>
+        <div class="nav-item" id="nav-results" onclick="showSection('results')"><span>📋</span> 결과 조회</div>
+      </nav>
+    </aside>
+    <main class="admin-main">
+
+      <section id="section-dashboard" class="admin-section active">
+        <div class="section-title">대시보드</div>
+        <div class="stats-row">
+          <div class="stat-card"><div class="stat-num" id="stat-students">-</div><div class="stat-label">등록된 학생</div></div>
+          <div class="stat-card"><div class="stat-num" id="stat-series">-</div><div class="stat-label">책 시리즈</div></div>
+          <div class="stat-card"><div class="stat-num" id="stat-quizzes">-</div><div class="stat-label">퀴즈 세트</div></div>
+          <div class="stat-card"><div class="stat-num" id="stat-results">-</div><div class="stat-label">제출된 결과</div></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><strong>최근 퀴즈 결과</strong></div>
+          <div id="recent-results-list"><div class="empty-state"><div class="empty-icon">📋</div>아직 결과가 없습니다</div></div>
+        </div>
+      </section>
+
+      <section id="section-students" class="admin-section">
+        <div class="section-title">학생 관리</div>
+        <div class="tabs" id="students-tab-btns">
+          <div class="tab active" onclick="switchTab('students-tab-btns','active-students-tab',this)">👤 학생 목록</div>
+          <div class="tab" onclick="switchTab('students-tab-btns','withdrawn-students-tab',this)">🚪 탈퇴 학생</div>
+        </div>
+
+        <div id="active-students-tab" class="tab-content active">
+          <div class="card" style="overflow:visible;padding:0">
+            <div style="position:sticky;top:64px;z-index:90;background:var(--surface);padding:.85rem 1.5rem;border-bottom:1px solid var(--border);border-radius:var(--radius) var(--radius) 0 0;display:flex;align-items:center;gap:.75rem">
+              <input type="text" id="student-search-input" class="form-input" style="max-width:220px"
+                placeholder="이름 검색..." oninput="filterStudentsTable()">
+              <button class="btn btn-primary btn-sm" style="white-space:nowrap" onclick="resetStudentModal();openModal('student-modal')">+ 학생 추가</button>
+            </div>
+            <div style="overflow-x:auto;padding:0 1.5rem 1.5rem">
+              <div id="students-table-wrap"><div class="empty-state"><div class="empty-icon">👤</div>등록된 학생이 없습니다</div></div>
+            </div>
+          </div>
+        </div>
+
+        <div id="withdrawn-students-tab" class="tab-content">
+          <div class="card">
+            <div class="card-header">
+              <strong>탈퇴 학생 목록</strong>
+              <input type="text" id="withdrawn-search-input" class="form-input" style="max-width:200px"
+                placeholder="이름 검색..." oninput="filterWithdrawnTable()">
+            </div>
+            <div id="withdrawn-table-wrap"><div class="empty-state"><div class="empty-icon">🚪</div>탈퇴 학생이 없습니다</div></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-timetable" class="admin-section">
+        <div class="section-title">시간표</div>
+        <div class="card" style="overflow-x:auto">
+          <div id="timetable-wrap"></div>
+        </div>
+      </section>
+
+      <section id="section-books" class="admin-section">
+        <div class="section-title">책 / 퀴즈 관리</div>
+        <div class="tabs" id="books-tab-btns">
+          <div class="tab active" onclick="switchTab('books-tab-btns','series-tab',this)">시리즈 관리</div>
+          <div class="tab" onclick="switchTab('books-tab-btns','quiz-tab',this)">퀴즈 추가</div>
+          <div class="tab" onclick="switchTab('books-tab-btns','quiz-list-tab',this)">퀴즈 목록</div>
+        </div>
+
+        <div id="series-tab" class="tab-content active">
+          <div class="card">
+            <div class="card-header">
+              <strong>책 시리즈 목록</strong>
+              <button class="btn btn-primary btn-sm" onclick="openModal('series-modal')">+ 시리즈 추가</button>
+            </div>
+            <div id="series-list-wrap"><div class="empty-state"><div class="empty-icon">📚</div>등록된 시리즈가 없습니다</div></div>
+          </div>
+        </div>
+
+        <div id="quiz-tab" class="tab-content">
+          <div class="card">
+            <div class="card-header"><strong>퀴즈 추가</strong></div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">책 시리즈 선택</label>
+                <select class="form-select" id="quiz-series-select" onchange="loadBooksForSelect()">
+                  <option value="">-- 시리즈 선택 --</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">권호</label>
+                <select class="form-select" id="quiz-book-select">
+                  <option value="">-- 권호 선택 --</option>
+                </select>
+              </div>
+            </div>
+            <hr class="separator">
+            <div class="tabs" id="qi-tab-btns">
+              <div class="tab active" onclick="switchTab('qi-tab-btns','upload-tab',this)">📂 워드 파일 업로드</div>
+              <div class="tab" onclick="switchTab('qi-tab-btns','paste-tab',this)">📋 텍스트 붙여넣기</div>
+            </div>
+            <div id="upload-tab" class="tab-content active">
+              <div class="upload-zone" onclick="document.getElementById('docx-file-input').click()"
+                ondragover="event.preventDefault();this.classList.add('dragover')"
+                ondragleave="this.classList.remove('dragover')"
+                ondrop="handleFileDrop(event)">
+                <div class="upload-icon">📄</div>
+                <div style="font-weight:600;margin-bottom:.25rem">.docx 파일을 드래그하거나 클릭하세요</div>
+                <div style="font-size:.85rem;color:var(--text-dim)">Word 문서(.docx) 지원</div>
+              </div>
+              <input type="file" id="docx-file-input" accept=".docx" style="display:none" onchange="handleFileSelect(event)">
+            </div>
+            <div id="paste-tab" class="tab-content">
+              <div class="form-group">
+                <label class="form-label">퀴즈 텍스트 붙여넣기</label>
+                <textarea class="form-textarea" id="quiz-paste-text" placeholder="여기에 퀴즈 텍스트를 붙여넣으세요.
+
+예시:
+1. What is Jack's sister's name?
+A. Jenny  B. Annie  C. Mary  D. Kate
+
+2. Where do they go first?
+A. Library  B. Park  C. Museum  D. School
+
+1.B 2.A 3.C 4.D 5.A 6.B 7.C 8.D 9.A 10.B"></textarea>
+              </div>
+              <button class="btn btn-secondary" onclick="parsePastedText()">텍스트 파싱</button>
+            </div>
+            <div id="parsed-result" style="display:none">
+              <hr class="separator">
+              <div style="font-weight:600;margin-bottom:.5rem">파싱된 문제 미리보기 <span id="parsed-count" class="badge badge-blue"></span></div>
+              <div class="parsed-preview" id="parsed-preview"></div>
+              <div class="mt-1" style="display:flex;gap:.5rem">
+                <button class="btn btn-success" onclick="saveQuiz()">✓ 퀴즈 저장</button>
+                <button class="btn btn-secondary" onclick="clearParsed()">취소</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="quiz-list-tab" class="tab-content">
+          <div class="card">
+            <div class="card-header">
+              <strong>등록된 퀴즈</strong>
+              <select class="form-select" id="quiz-filter-series" style="width:200px" onchange="loadQuizList()">
+                <option value="">전체 시리즈</option>
+              </select>
+            </div>
+            <div id="quiz-list-wrap"><div class="empty-state"><div class="empty-icon">📝</div>등록된 퀴즈가 없습니다</div></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="section-results" class="admin-section">
+        <div class="section-title">결과 조회</div>
+        <div class="card">
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">학생 검색</label>
+              <input type="text" class="form-input" id="result-filter-student-search"
+                placeholder="이름 입력..." oninput="filterResultsByStudent()">
+              <input type="hidden" id="result-filter-student" value="">
+            </div>
+            <div class="form-group">
+              <label class="form-label">시리즈</label>
+              <select class="form-select" id="result-filter-series" onchange="loadResults()"><option value="">전체 시리즈</option></select>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:flex-end">
+            <button class="btn btn-danger btn-sm" onclick="openBulkDeleteModal()">🗑 특정 학생 기록 전체 삭제</button>
+          </div>
+        </div>
+        <div class="card">
+          <div id="results-table-wrap"><div class="empty-state"><div class="empty-icon">📋</div>결과가 없습니다</div></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- 모바일 하단 탭바 -->
+  <nav class="mobile-tabbar">
+    <button class="mobile-tab active" id="mob-dashboard" onclick="showSection('dashboard')">
+      <span class="tab-icon">📊</span><span>대시보드</span>
+    </button>
+    <button class="mobile-tab" id="mob-students" onclick="showSection('students')">
+      <span class="tab-icon">👤</span><span>학생</span>
+    </button>
+    <button class="mobile-tab" id="mob-timetable" onclick="showSection('timetable')">
+      <span class="tab-icon">🗓</span><span>시간표</span>
+    </button>
+    <button class="mobile-tab" id="mob-books" onclick="showSection('books')">
+      <span class="tab-icon">📖</span><span>퀴즈</span>
+    </button>
+    <button class="mobile-tab" id="mob-results" onclick="showSection('results')">
+      <span class="tab-icon">📋</span><span>결과</span>
+    </button>
+  </nav>
+</div>
+
+<div id="student-page" class="page">
+  <div class="student-header">
+    <div class="app-logo">📚 독서퀴즈</div>
+    <div class="student-name-tag" id="student-name-tag">학생</div>
+  </div>
+  <div class="quiz-container">
+    <div id="sv-level">
+      <div class="section-title" style="margin-bottom:1rem">단계 선택</div>
+      <div class="level-grid" id="student-level-grid"></div>
+    </div>
+    <div id="sv-series" style="display:none">
+      <div class="breadcrumb">
+        <span onclick="showSV('level')">🏠 단계 선택</span>
+        <span class="sep">›</span><span id="bc-level-name"></span>
+      </div>
+      <div class="section-title" style="margin-bottom:1rem" id="series-view-title"></div>
+      <div class="series-grid" id="student-series-grid"></div>
+    </div>
+    <div id="sv-book" style="display:none">
+      <div class="breadcrumb">
+        <span onclick="showSV('level')">🏠 단계</span>
+        <span class="sep">›</span>
+        <span onclick="showSV('series')" id="bc-level-name2"></span>
+        <span class="sep">›</span><span id="bc-series"></span>
+      </div>
+      <div class="section-title" style="margin-bottom:1rem" id="book-view-title"></div>
+      <div class="book-list" id="student-book-list"></div>
+    </div>
+    <div id="sv-quiz" style="display:none">
+      <div class="breadcrumb">
+        <span onclick="showSV('level')">🏠 단계</span>
+        <span class="sep">›</span>
+        <span onclick="showSV('series')" id="bc-level-name3"></span>
+        <span class="sep">›</span>
+        <span id="bc-quiz-series" onclick="if(currentSeriesId)selectStudentSeries(currentSeriesId)" style="cursor:pointer"></span>
+        <span class="sep">›</span>
+        <span id="bc-quiz-book"></span>
+      </div>
+      <div class="quiz-progress">
+        <span id="quiz-progress-text" class="text-sm text-dim"></span>
+        <div class="progress-bar"><div class="progress-fill" id="quiz-progress-fill"></div></div>
+      </div>
+      <div id="quiz-question-area"></div>
+      <div id="quiz-nav-btns" style="display:flex;gap:.75rem;margin-top:1rem;flex-wrap:wrap;align-items:center"></div>
+    </div>
+    <div id="sv-result" style="display:none">
+      <div class="result-card">
+        <div style="font-size:1.1rem;font-weight:600">퀴즈 완료! 🎉</div>
+        <div class="result-score" id="result-score-display"></div>
+        <div class="result-msg" id="result-msg-display"></div>
+        <div id="result-detail" style="text-align:left;margin-top:1.5rem;background:var(--bg);border-radius:8px;overflow:hidden"></div>
+        <div style="display:flex;gap:.75rem;justify-content:center;margin-top:1.5rem">
+          <button class="btn btn-primary" onclick="if(currentSeriesId)selectStudentSeries(currentSeriesId)">다른 권 풀기</button>
+          <button class="btn btn-secondary" onclick="showSV('series')">시리즈 목록</button>
+          <button class="btn btn-secondary" onclick="showSV('level')">단계 홈</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="forbidden-page" class="page">
+  <div class="center-screen">
+    <div style="text-align:center">
+      <div style="font-size:4rem">🚫</div>
+      <div style="font-size:1.5rem;font-weight:700;margin:1rem 0">접근 권한이 없습니다</div>
+      <div class="text-dim">이 학생 링크는 유효하지 않거나 삭제되었습니다.</div>
+    </div>
+  </div>
+</div>
+
+<!-- MODALS -->
+<div class="modal-overlay" id="student-modal">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-title" id="student-modal-title">학생 추가 <button class="modal-close" onclick="closeModal('student-modal')">✕</button></div>
+
+    <!-- 대표/형제자매 선택 -->
+    <div class="form-group">
+      <label class="form-label">구분</label>
+      <div style="display:flex;gap:.5rem">
+        <button type="button" id="type-main-btn" class="btn btn-primary btn-sm" onclick="setStudentType('main')" style="flex:1">👑 대표자녀</button>
+        <button type="button" id="type-sibling-btn" class="btn btn-secondary btn-sm" onclick="setStudentType('sibling')" style="flex:1">👫 형제자매</button>
+      </div>
+    </div>
+
+    <!-- 형제자매일 때 대표자녀 검색 -->
+    <div id="sibling-ref-section" style="display:none">
+      <div class="form-group">
+        <label class="form-label">대표자녀 선택 <span class="text-dim text-sm">(이름으로 검색)</span></label>
+        <input type="text" class="form-input" id="sibling-main-search" placeholder="대표자녀 이름 입력..." oninput="searchMainStudent()">
+        <div id="sibling-main-results" style="margin-top:.4rem;display:flex;flex-direction:column;gap:.25rem;max-height:120px;overflow-y:auto"></div>
+        <input type="hidden" id="sibling-main-id">
+        <div id="sibling-main-selected" style="display:none;margin-top:.4rem;padding:.4rem .75rem;background:rgba(108,143,255,.1);border-radius:6px;font-size:.85rem;color:var(--accent)"></div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">학생 이름 *</label>
+        <input type="text" class="form-input" id="student-name-input" placeholder="예) 홍길동">
+      </div>
+      <div class="form-group">
+        <label class="form-label">가입일자</label>
+        <input type="date" class="form-input" id="student-joindate-input">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">가입학년</label>
+        <select class="form-select" id="student-grade-input">
+          <option value="">-- 선택 --</option>
+          <option value="4세">4세</option><option value="5세">5세</option>
+          <option value="6세">6세</option><option value="7세">7세</option>
+          <option value="초1">초1</option><option value="초2">초2</option>
+          <option value="초3">초3</option><option value="초4">초4</option>
+          <option value="초5">초5</option><option value="초6">초6</option>
+          <option value="중1">중1</option><option value="중2">중2</option>
+          <option value="중3">중3</option><option value="고등이상">고등이상</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">학교</label>
+        <input type="text" class="form-input" id="student-school-input" placeholder="예) 서울초등학교">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">요일</label>
+        <select class="form-select" id="student-day-input">
+          <option value="">-- 선택 --</option>
+          <option value="월">월</option><option value="화">화</option>
+          <option value="수">수</option><option value="목">목</option>
+          <option value="금">금</option><option value="토">토</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">시간</label>
+        <select class="form-select" id="student-time-input">
+          <option value="">-- 선택 --</option>
+          <option value="10시">10시</option><option value="10시반">10시반</option>
+          <option value="11시">11시</option><option value="11시반">11시반</option>
+          <option value="12시">12시</option><option value="12시반">12시반</option>
+          <option value="2시">2시</option><option value="2시반">2시반</option>
+          <option value="3시">3시</option><option value="3시반">3시반</option>
+          <option value="4시">4시</option><option value="4시반">4시반</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">학부모명</label>
+        <input type="text" class="form-input" id="student-parent-input" placeholder="예) 홍부모">
+      </div>
+      <div class="form-group">
+        <label class="form-label">전화번호</label>
+        <input type="text" class="form-input" id="student-phone-input" placeholder="예) 010-1234-5678">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">기타사항</label>
+      <input type="text" class="form-input" id="student-note-input" placeholder="특이사항, 메모 등">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('student-modal')">취소</button>
+      <button class="btn btn-primary" id="student-modal-btn" onclick="addStudent()">추가</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="withdraw-modal">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-title">탈퇴 처리 <button class="modal-close" onclick="closeModal('withdraw-modal')">✕</button></div>
+    <p class="text-sm text-dim" style="margin-bottom:1rem"><strong id="withdraw-student-name"></strong> 학생을 탈퇴 처리합니다.</p>
+    <div class="form-group">
+      <label class="form-label">탈퇴 일자</label>
+      <input type="date" class="form-input" id="withdraw-date-input">
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('withdraw-modal')">취소</button>
+      <button class="btn btn-danger" onclick="confirmWithdraw()">확인</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="student-info-modal">
+  <div class="modal" style="max-width:500px">
+    <div class="modal-title">학생 정보 <button class="modal-close" onclick="closeModal('student-info-modal')">✕</button></div>
+    <div id="student-info-content"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('student-info-modal')">닫기</button>
+      <button class="btn btn-primary" onclick="openEditStudent(viewingStudentId)">✏️ 수정</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="series-modal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title">책 시리즈 추가 <button class="modal-close" onclick="closeModal('series-modal')">✕</button></div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">시리즈 이름</label>
+        <input type="text" class="form-input" id="series-name-input" placeholder="예) Magic Tree House">
+      </div>
+      <div class="form-group">
+        <label class="form-label">아이콘 이모지 (선택)</label>
+        <input type="text" class="form-input" id="series-icon-input" placeholder="예) 🌳" maxlength="4">
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">단계</label>
+        <select class="form-select" id="series-level-input">
+          <option value="1">1단계 — 픽처북</option>
+          <option value="2">2단계 — 얼리챕터북</option>
+          <option value="3">3단계 — 챕터북</option>
+          <option value="4" selected>4단계 — AR5이상</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">총 권수</label>
+        <input type="number" class="form-input" id="series-count-input" placeholder="예) 28" min="1" max="200" oninput="generateBookTitleInputs()">
+      </div>
+    </div>
+    <div id="book-titles-wrap" style="display:none">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
+        <label class="form-label" style="margin:0">권별 제목 입력 <span class="text-dim text-sm">(선택사항 — 비워두면 "N권"으로 표시)</span></label>
+        <button class="btn btn-secondary btn-sm" onclick="clearAllTitles()">모두 지우기</button>
+      </div>
+      <div id="book-titles-list" style="max-height:260px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.75rem;display:flex;flex-direction:column;gap:.5rem"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('series-modal')">취소</button>
+      <button class="btn btn-primary" onclick="addSeries()">추가</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="link-modal">
+  <div class="modal">
+    <div class="modal-title">학생 링크 <span id="link-modal-name"></span> <button class="modal-close" onclick="closeModal('link-modal')">✕</button></div>
+    <p class="text-sm text-dim" style="margin-bottom:1rem">이 링크를 학생에게 공유하세요. 학생은 이 링크로 모든 독서퀴즈를 이용할 수 있습니다.</p>
+    <div class="link-box" id="link-modal-url"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('link-modal')">닫기</button>
+      <button class="btn btn-primary" onclick="copyStudentLink()">📋 복사</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="result-detail-modal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title"><span id="result-detail-title">결과 상세</span> <button class="modal-close" onclick="closeModal('result-detail-modal')">✕</button></div>
+    <div id="result-detail-content"></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('result-detail-modal')">닫기</button></div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="bulk-delete-modal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-title">특정 학생 기록 전체 삭제 <button class="modal-close" onclick="closeModal('bulk-delete-modal')">✕</button></div>
+    <p class="text-sm text-dim" style="margin-bottom:1rem">선택한 학생의 퀴즈 결과 기록을 모두 삭제합니다. 이 작업은 되돌릴 수 없습니다.</p>
+    <div class="form-group">
+      <label class="form-label">학생 선택</label>
+      <select class="form-select" id="bulk-delete-student-select">
+        <option value="">-- 학생 선택 --</option>
+      </select>
+    </div>
+    <div id="bulk-delete-preview" style="display:none;margin-bottom:1rem;padding:.75rem;background:rgba(255,92,92,0.08);border:1px solid rgba(255,92,92,0.2);border-radius:8px;font-size:.875rem">
+      <span id="bulk-delete-count"></span>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('bulk-delete-modal')">취소</button>
+      <button class="btn btn-danger" id="bulk-delete-confirm-btn" onclick="executeBulkDelete()" disabled>삭제</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="quiz-preview-modal">
+  <div class="modal" style="max-width:720px">
+    <div class="modal-title">
+      <span id="quiz-preview-title">퀴즈 미리보기</span>
+      <button class="modal-close" onclick="closeModal('quiz-preview-modal')">✕</button>
+    </div>
+    <div id="quiz-preview-stats" style="display:flex;align-items:center;gap:.75rem;margin-bottom:1rem;padding:.6rem .9rem;background:var(--bg);border-radius:8px;font-size:.85rem"></div>
+    <div id="quiz-preview-body" style="max-height:60vh;overflow-y:auto;display:flex;flex-direction:column;gap:1rem"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('quiz-preview-modal')">닫기</button>
+      <button class="btn btn-success" onclick="saveAllQuizEdits()">💾 전체 저장</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="edit-titles-modal">
+  <div class="modal" style="max-width:580px">
+    <div class="modal-title">시리즈 편집 — <span id="edit-titles-series-name"></span> <button class="modal-close" onclick="closeModal('edit-titles-modal')">✕</button></div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">단계 변경</label>
+        <select class="form-select" id="edit-series-level">
+          <option value="1">1단계 — 픽처북</option>
+          <option value="2">2단계 — 얼리챕터북</option>
+          <option value="3">3단계 — 챕터북</option>
+          <option value="4">4단계 — AR5이상</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">총 권수 <span class="text-dim text-sm">(늘리면 새 권이 추가됨)</span></label>
+        <div style="display:flex;gap:.5rem;align-items:center">
+          <input type="number" class="form-input" id="edit-series-totalbooks" min="1" max="200" oninput="updateEditTitlesList()">
+          <button class="btn btn-secondary btn-sm" onclick="updateEditTitlesList()">적용</button>
+        </div>
+      </div>
+    </div>
+    <hr class="separator">
+    <p class="text-sm text-dim" style="margin-bottom:.75rem">권별 제목 (비워두면 "N권"으로 표시)</p>
+    <div id="edit-titles-list" style="max-height:320px;overflow-y:auto;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:.75rem;display:flex;flex-direction:column;gap:.5rem"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('edit-titles-modal')">취소</button>
+      <button class="btn btn-primary" onclick="saveEditedTitles()">저장</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── CONFIG
+const ADMIN_PASSWORD = 'bookquiz2024';
+
+// ── STATE
+let allStudents = [], allSeries = [], studentResults = {};
+let currentStudentId = null, currentStudentData = null;
+let currentSeriesId = null, currentSeriesData = null;
+let currentBookNum = null, currentQuizData = null;
+let currentLevelId = null;
+let studentAnswers = {}, quizRevealed = false, parsedQuestions = [], currentQIdx = 0;
+
+const LEVELS = {
+  '1': { label: '픽처북', desc: '1단계', color: 'level-1', icon: '🌱' },
+  '2': { label: '얼리챕터북', desc: '2단계', color: 'level-2', icon: '📗' },
+  '3': { label: '챕터북', desc: '3단계', color: 'level-3', icon: '📙' },
+  '4': { label: 'AR5이상', desc: '4단계', color: 'level-4', icon: '📕' },
+};
+
+// ── INIT (DOMContentLoaded 사용 - firebase compat SDK는 동기 초기화)
+window.addEventListener('DOMContentLoaded', async () => {
+  const params = new URLSearchParams(location.search);
+  const studentId = params.get('student');
+
+  if (studentId) {
+    try { await initStudentPage(studentId); }
+    catch(e) { console.error(e); showPage('forbidden-page'); }
+  } else {
+    if (sessionStorage.getItem('admin-auth') === ADMIN_PASSWORD) {
+      showPage('admin-page');
+      try { await initAdmin(); } catch(e) { console.error(e); }
+      setTimeout(() => showSection('timetable'), 50);
+    } else {
+      showPage('admin-login-page');
+    }
+  }
+});
+
+function showPage(id) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+// ── ADMIN AUTH
+async function adminLogin() {
+  const pw = document.getElementById('admin-pw-input').value;
+  const err = document.getElementById('login-error');
+  if (pw === ADMIN_PASSWORD) {
+    sessionStorage.setItem('admin-auth', pw);
+    err.style.display = 'none';
+    showPage('admin-page');
+    try { await initAdmin(); } catch(e) { console.error(e); }
+    setTimeout(() => showSection('timetable'), 50);
+  } else {
+    err.textContent = '비밀번호가 올바르지 않습니다.';
+    err.style.display = 'block';
+  }
+}
+function adminLogout() {
+  sessionStorage.removeItem('admin-auth');
+  showPage('admin-login-page');
+}
+
+// ── ADMIN INIT
+async function initAdmin() {
+  await Promise.all([loadStudents(), loadSeries()]);
+  await Promise.all([loadDashboard(), loadResults(), loadQuizList()]);
+}
+
+function showSection(name) {
+  document.querySelectorAll('.admin-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelectorAll('.mobile-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('section-' + name).classList.add('active');
+  document.getElementById('nav-' + name).classList.add('active');
+  const mobTab = document.getElementById('mob-' + name);
+  if (mobTab) mobTab.classList.add('active');
+  if (name === 'timetable') renderTimetable();
+}
+
+// ── DASHBOARD
+async function loadDashboard() {
+  document.getElementById('stat-students').textContent = allStudents.length;
+  document.getElementById('stat-series').textContent = allSeries.length;
+  const qSnap = await db.collection('quizzes').get();
+  document.getElementById('stat-quizzes').textContent = qSnap.size;
+  const rSnap = await db.collection('results').get();
+  document.getElementById('stat-results').textContent = rSnap.size;
+  const results = [];
+  rSnap.forEach(d => results.push({id:d.id,...d.data()}));
+  results.sort((a,b)=>(b.submittedAt?.seconds||0)-(a.submittedAt?.seconds||0));
+  const el = document.getElementById('recent-results-list');
+  const recent = results.slice(0,8);
+  if (!recent.length) { el.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div>아직 결과가 없습니다</div>'; return; }
+  el.innerHTML = `<table class="data-table"><thead><tr><th>학생</th><th>시리즈</th><th>권</th><th>점수</th><th>날짜</th></tr></thead><tbody>
+    ${recent.map(r=>`<tr><td>${r.studentName||'-'}</td><td>${r.seriesName||'-'}</td><td>${r.bookNum}권</td>
+    <td><span class="badge ${r.score>=8?'badge-green':r.score>=5?'badge-yellow':'badge-red'}">${r.score}/10</span></td>
+    <td class="text-dim text-sm">${r.submittedAt?new Date(r.submittedAt.seconds*1000).toLocaleDateString('ko-KR'):'-'}</td></tr>`).join('')}
+  </tbody></table>`;
+}
+
+// ── STUDENTS
+// 학년 배열 (순서대로)
+const GRADES = ['4세','5세','6세','7세','초1','초2','초3','초4','초5','초6','중1','중2','중3','고등이상'];
+
+function calcCurrentGrade(joinGrade, joinDateStr) {
+  if (!joinGrade || joinGrade === '고등이상') return joinGrade || '-';
+  if (!joinDateStr) return joinGrade;
+  const joinDate = new Date(joinDateStr);
+  const now = new Date();
+  // 1월 1일 기준으로 몇 년이 지났는지
+  let yearsPassed = now.getFullYear() - joinDate.getFullYear();
+  // 가입일이 올해 1월 1일 이후면 아직 학년 안 올라감 → 그 해 1월 1일 기준
+  // 즉, 매년 1월 1일에 학년 상승
+  if (now < new Date(joinDate.getFullYear(), 0, 1)) yearsPassed = 0;
+  else yearsPassed = now.getFullYear() - joinDate.getFullYear();
+  // 가입한 해의 1월 1일 이후에 가입했다면 그 해는 0년
+  const joinYear1Jan = new Date(joinDate.getFullYear(), 0, 1);
+  // 현재 연도 기준 경과 연수
+  yearsPassed = now.getFullYear() - joinDate.getFullYear();
+  const gradeIdx = GRADES.indexOf(joinGrade);
+  if (gradeIdx === -1) return joinGrade;
+  const newIdx = Math.min(gradeIdx + yearsPassed, GRADES.length - 1);
+  return GRADES[newIdx];
+}
+
+async function loadStudents() {
+  const snap = await db.collection('students').get();
+  allStudents = [];
+  snap.forEach(d => allStudents.push({id:d.id,...d.data()}));
+  allStudents.sort((a,b) => a.name.localeCompare(b.name, 'ko'));
+  renderStudentsTable();
+  renderWithdrawnTable();
+  // 결과 필터는 활성 학생만
+  document.getElementById('result-filter-student').innerHTML =
+    '<option value="">전체 학생</option>' + allStudents.filter(s=>!s.withdrawn).map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+}
+
+function renderStudentsTable() {
+  const el = document.getElementById('students-table-wrap');
+  const keyword = (document.getElementById('student-search-input')?.value || '').trim();
+  // 대표자녀 (studentType==='main' 또는 미설정) 중 비탈퇴
+  const mainStudents = allStudents.filter(s => !s.withdrawn && (s.studentType==='main'||!s.studentType));
+  // 형제자매 맵
+  const siblingMap = {};
+  allStudents.filter(s => !s.withdrawn && s.studentType==='sibling').forEach(s=>{
+    if (!siblingMap[s.mainStudentId]) siblingMap[s.mainStudentId]=[];
+    siblingMap[s.mainStudentId].push(s);
+  });
+
+  const filtered = keyword
+    ? mainStudents.filter(s => s.name.includes(keyword) ||
+        (siblingMap[s.id]||[]).some(sib=>sib.name.includes(keyword)))
+    : mainStudents;
+
+  if (!mainStudents.length) { el.innerHTML='<div class="empty-state"><div class="empty-icon">👤</div>등록된 학생이 없습니다</div>'; return; }
+  if (!filtered.length) { el.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div>"${keyword}"에 해당하는 학생이 없습니다</div>`; return; }
+
+  let rows = '';
+  filtered.forEach((s, idx) => {
+    const currentGrade = calcCurrentGrade(s.grade, s.joinDate);
+    const joinDateDisplay = s.joinDate || (s.createdAt ? new Date(s.createdAt.seconds*1000).toLocaleDateString('ko-KR') : '-');
+    const siblings = siblingMap[s.id] || [];
+    const isExpanded = expandedMainIds.has(s.id);
+
+    rows += `<tr style="background:var(--surface)">
+      <td style="font-family:'Space Mono',monospace;font-size:.8rem;color:var(--text-dim);white-space:nowrap">
+        <span style="margin-right:.3rem">${idx+1}</span>
+        <button onclick="toggleSiblings('${s.id}')" style="background:${siblings.length?'rgba(108,143,255,.2)':'var(--surface2)'};border:1px solid var(--border);border-radius:4px;color:${siblings.length?'var(--accent)':'var(--text-dim)'};width:20px;height:20px;font-size:.75rem;cursor:pointer;line-height:1">${isExpanded?'−':'+'}</button>
+      </td>
+      <td><strong style="cursor:pointer;color:var(--accent)" onclick="showStudentInfo('${s.id}')">${s.name}</strong>
+        ${siblings.length?`<span class="badge badge-blue" style="margin-left:.3rem;font-size:.68rem">${siblings.length}명</span>`:''}
+      </td>
+      <td><button class="btn btn-secondary btn-sm" onclick="showStudentLink('${s.id}','${s.name}')">🔗 링크</button></td>
+      <td class="text-dim text-sm">${joinDateDisplay}</td>
+      <td>${currentGrade?`<span class="badge badge-blue">${currentGrade}</span>`:'-'}</td>
+      <td class="text-sm">${s.school||'-'}</td>
+      <td><input type="text" value="${s.note||''}" placeholder="메모"
+        style="background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:.82rem;width:110px;padding:.2rem .3rem;"
+        onblur="saveStudentNote('${s.id}',this.value)"></td>
+      <td><button class="btn btn-secondary btn-sm" onclick="openWithdrawModal('${s.id}','${s.name}')">탈퇴</button></td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteStudent('${s.id}','${s.name}')">삭제</button></td>
+    </tr>`;
+
+    // 형제자매 펼침 행
+    if (isExpanded && siblings.length) {
+      siblings.forEach(sib => {
+        const sibGrade = calcCurrentGrade(sib.grade, sib.joinDate);
+        rows += `<tr style="background:rgba(108,143,255,0.04)">
+          <td style="border-left:3px solid var(--accent);padding-left:.5rem"></td>
+          <td style="padding-left:1.5rem">
+            <span style="color:var(--text-dim);font-size:.75rem;margin-right:.3rem">↳</span>
+            <strong style="cursor:pointer;color:var(--text)" onclick="showStudentInfo('${sib.id}')">${sib.name}</strong>
+          </td>
+          <td><button class="btn btn-secondary btn-sm" onclick="showStudentLink('${sib.id}','${sib.name}')">🔗 링크</button></td>
+          <td class="text-dim text-sm">${sib.joinDate||'-'}</td>
+          <td>${sibGrade?`<span class="badge badge-blue" style="font-size:.72rem">${sibGrade}</span>`:'-'}</td>
+          <td class="text-sm">${sib.school||'-'}</td>
+          <td><input type="text" value="${sib.note||''}" placeholder="메모"
+            style="background:transparent;border:none;border-bottom:1px solid var(--border);color:var(--text);font-size:.82rem;width:110px;padding:.2rem .3rem;"
+            onblur="saveStudentNote('${sib.id}',this.value)"></td>
+          <td></td>
+          <td><button class="btn btn-danger btn-sm" onclick="deleteStudent('${sib.id}','${sib.name}')">삭제</button></td>
+        </tr>`;
+      });
+    }
+  });
+
+  el.innerHTML = `<table class="data-table"><thead><tr>
+    <th style="width:60px">번호</th><th>학생이름</th><th>링크</th><th>가입일자</th><th>현재학년</th><th>학교</th><th>기타사항</th><th>탈퇴</th><th>삭제</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function toggleSiblings(mainId) {
+  if (expandedMainIds.has(mainId)) expandedMainIds.delete(mainId);
+  else expandedMainIds.add(mainId);
+  renderStudentsTable();
+}
+
+function filterStudentsTable() { renderStudentsTable(); }
+
+function renderWithdrawnTable() {
+  const el = document.getElementById('withdrawn-table-wrap');
+  if (!el) return;
+  const keyword = (document.getElementById('withdrawn-search-input')?.value || '').trim();
+  const mainWithdrawn = allStudents.filter(s => s.withdrawn && (s.studentType==='main'||!s.studentType));
+  const siblingMap = {};
+  allStudents.filter(s => s.withdrawn && s.studentType==='sibling').forEach(s=>{
+    if (!siblingMap[s.mainStudentId]) siblingMap[s.mainStudentId]=[];
+    siblingMap[s.mainStudentId].push(s);
+  });
+  const filtered = keyword ? mainWithdrawn.filter(s=>s.name.includes(keyword)) : mainWithdrawn;
+
+  if (!mainWithdrawn.length) { el.innerHTML='<div class="empty-state"><div class="empty-icon">🚪</div>탈퇴 학생이 없습니다</div>'; return; }
+  if (!filtered.length) { el.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div>"${keyword}"에 해당하는 학생이 없습니다</div>`; return; }
+
+  let rows='';
+  filtered.forEach(s=>{
+    const currentGrade = calcCurrentGrade(s.grade, s.joinDate);
+    const siblings = siblingMap[s.id]||[];
+    rows += `<tr>
+      <td><strong>${s.name}</strong>${siblings.length?`<span class="badge badge-yellow" style="margin-left:.3rem;font-size:.68rem">${siblings.length}명</span>`:''}
+      </td>
+      <td class="text-dim text-sm">${s.joinDate||'-'}</td>
+      <td class="text-sm" style="color:var(--danger)">${s.withdrawDate||'-'}</td>
+      <td>${currentGrade?`<span class="badge badge-yellow">${currentGrade}</span>`:'-'}</td>
+      <td class="text-sm">${s.school||'-'}</td>
+      <td class="text-sm">${s.note||'-'}</td>
+      <td><button class="btn btn-success btn-sm" onclick="rejoinStudent('${s.id}','${s.name}')">재가입</button></td>
+      <td><button class="btn btn-danger btn-sm" onclick="deleteStudent('${s.id}','${s.name}')">삭제</button></td>
+    </tr>`;
+    siblings.forEach(sib=>{
+      const sg=calcCurrentGrade(sib.grade,sib.joinDate);
+      rows+=`<tr style="background:rgba(255,92,92,0.04)">
+        <td style="padding-left:1.5rem;border-left:3px solid var(--danger)">
+          <span style="color:var(--text-dim);font-size:.75rem">↳</span> ${sib.name}
+        </td>
+        <td class="text-dim text-sm">${sib.joinDate||'-'}</td>
+        <td class="text-sm" style="color:var(--danger)">${sib.withdrawDate||'-'}</td>
+        <td>${sg?`<span class="badge badge-yellow" style="font-size:.72rem">${sg}</span>`:'-'}</td>
+        <td class="text-sm">${sib.school||'-'}</td>
+        <td class="text-sm">${sib.note||'-'}</td>
+        <td></td>
+        <td><button class="btn btn-danger btn-sm" onclick="deleteStudent('${sib.id}','${sib.name}')">삭제</button></td>
+      </tr>`;
+    });
+  });
+  el.innerHTML=`<table class="data-table"><thead><tr>
+    <th>학생이름</th><th>가입일자</th><th>탈퇴일자</th><th>현재학년</th><th>학교</th><th>기타사항</th><th>재가입</th><th>삭제</th>
+  </tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+function filterWithdrawnTable() { renderWithdrawnTable(); }
+
+async function confirmWithdraw() {
+  const withdrawDate = document.getElementById('withdraw-date-input').value;
+  if (!withdrawDate) { toast('탈퇴 일자를 입력하세요','error'); return; }
+  const s = allStudents.find(s=>s.id===withdrawingStudentId);
+  if (!s) return;
+
+  // 형제자매 찾기
+  const siblings = allStudents.filter(sib=>sib.studentType==='sibling'&&sib.mainStudentId===withdrawingStudentId&&!sib.withdrawn);
+  const allToWithdraw = [withdrawingStudentId, ...siblings.map(sib=>sib.id)];
+
+  // 모두 탈퇴 처리
+  const batch = db.batch();
+  allToWithdraw.forEach(id=>{
+    batch.update(db.collection('students').doc(id), { active:false, withdrawn:true, withdrawDate });
+  });
+  await batch.commit();
+  closeModal('withdraw-modal');
+
+  const sibMsg = siblings.length ? ` (형제자매 ${siblings.length}명 포함)` : '';
+
+  // 퀴즈 결과 삭제 여부
+  let totalResults = 0;
+  const resultSnaps = await Promise.all(allToWithdraw.map(id=>db.collection('results').where('studentId','==',id).get()));
+  resultSnaps.forEach(snap=>totalResults+=snap.size);
+
+  if (totalResults > 0) {
+    const del = confirm(`"${s.name}"${sibMsg} 탈퇴 처리되었습니다.\n퀴즈 결과 ${totalResults}개도 삭제하시겠습니까?\n\n확인 → 결과 삭제 / 취소 → 결과 유지`);
+    if (del) {
+      const delBatch = db.batch();
+      resultSnaps.forEach(snap=>snap.forEach(d=>delBatch.delete(d.ref)));
+      await delBatch.commit();
+      toast(`${s.name}${sibMsg} 탈퇴 + 결과 ${totalResults}개 삭제 완료`,'success');
+    } else {
+      toast(`${s.name}${sibMsg} 탈퇴 처리 완료`,'success');
+    }
+  } else {
+    toast(`${s.name}${sibMsg} 탈퇴 처리 완료`,'success');
+  }
+  withdrawingStudentId = null;
+  await loadStudents(); await loadDashboard();
+}
+
+// ── 재가입 처리
+async function rejoinStudent(id, name) {
+  if (!confirm(`"${name}" 학생을 재가입 처리하시겠습니까?\n원래 가입일자가 그대로 유지됩니다.`)) return;
+  // 형제자매도 함께 재가입
+  const siblings = allStudents.filter(s=>s.studentType==='sibling'&&s.mainStudentId===id&&s.withdrawn);
+  const batch = db.batch();
+  batch.update(db.collection('students').doc(id),{active:true,withdrawn:false,withdrawDate:''});
+  siblings.forEach(s=>batch.update(db.collection('students').doc(s.id),{active:true,withdrawn:false,withdrawDate:''}));
+  await batch.commit();
+  const sibMsg = siblings.length?` (형제자매 ${siblings.length}명 포함)`:'';
+  toast(`${name}${sibMsg} 재가입되었습니다 ✓`,'success');
+  await loadStudents(); await loadDashboard();
+}
+
+// ── 결과 조회 실시간 검색
+function filterResultsByStudent() {
+  const keyword = document.getElementById('result-filter-student-search').value.trim();
+  const matched = keyword ? allStudents.filter(s=>s.name.includes(keyword)) : [];
+  // 첫 번째 매치 학생으로 필터
+  const studentId = matched.length===1 ? matched[0].id : (keyword===''?'':'__no_match__');
+  document.getElementById('result-filter-student').value = studentId;
+  loadResults();
+}
+
+async function saveStudentNote(id, note) {
+  await db.collection('students').doc(id).update({ note });
+  const s = allStudents.find(s=>s.id===id);
+  if (s) s.note = note;
+}
+
+function getStudentUrl(id) { return location.origin + location.pathname + '?student=' + id; }
+
+let editingStudentId = null;
+let currentStudentType = 'main'; // 'main' | 'sibling'
+let expandedMainIds = new Set(); // 펼쳐진 대표자녀 ID
+
+function setStudentType(type) {
+  currentStudentType = type;
+  document.getElementById('type-main-btn').className = type==='main' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
+  document.getElementById('type-main-btn').style.flex = '1';
+  document.getElementById('type-sibling-btn').className = type==='sibling' ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
+  document.getElementById('type-sibling-btn').style.flex = '1';
+  document.getElementById('sibling-ref-section').style.display = type==='sibling' ? 'block' : 'none';
+}
+
+function searchMainStudent() {
+  const keyword = document.getElementById('sibling-main-search').value.trim();
+  const mainStudents = allStudents.filter(s => !s.withdrawn && (s.studentType==='main'||!s.studentType));
+  const results = keyword ? mainStudents.filter(s=>s.name.includes(keyword)) : [];
+  const container = document.getElementById('sibling-main-results');
+  container.innerHTML = results.slice(0,5).map(s=>`
+    <div onclick="selectMainStudent('${s.id}')"
+      style="padding:.35rem .75rem;border-radius:6px;cursor:pointer;background:var(--bg);border:1px solid var(--border);font-size:.85rem;transition:all .15s"
+      onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
+      ${s.name} ${s.day?`<span style="color:var(--text-dim);font-size:.78rem">(${s.day} ${s.time})</span>`:''}
+    </div>`).join('');
+}
+
+function selectMainStudent(id) {
+  const s = allStudents.find(s=>s.id===id);
+  if (!s) return;
+  document.getElementById('sibling-main-id').value = id;
+  document.getElementById('sibling-main-search').value = s.name;
+  document.getElementById('sibling-main-results').innerHTML = '';
+  document.getElementById('sibling-main-selected').style.display = 'block';
+  document.getElementById('sibling-main-selected').textContent = `✓ 대표자녀: ${s.name}`;
+  // 학부모명, 전화번호, 가입일자 자동 채우기
+  if (s.parent) document.getElementById('student-parent-input').value = s.parent;
+  if (s.phone) document.getElementById('student-phone-input').value = s.phone;
+  if (s.joinDate) document.getElementById('student-joindate-input').value = s.joinDate;
+}
+
+async function addStudent() {
+  const isEdit = !!editingStudentId;
+  let name = document.getElementById('student-name-input').value.trim();
+  if (!name) { toast('이름을 입력하세요','error'); return; }
+
+  if (!isEdit) {
+    const existing = allStudents.find(s => s.name === name);
+    if (existing) {
+      const altName = name + '2';
+      const alsoExists = allStudents.find(s => s.name === altName);
+      if (alsoExists) { toast(`"${name}"과 "${altName}" 모두 이미 있습니다.`,'error'); return; }
+      if (!confirm(`"${name}"은 이미 등록된 학생입니다.\n"${altName}"으로 등록하시겠습니까?`)) return;
+      name = altName;
+    }
+  }
+
+  // 수정 모드에서도 현재 화면에서 선택한 구분을 사용
+  const studentType = currentStudentType;
+  const mainStudentId = studentType==='sibling' ? document.getElementById('sibling-main-id').value : '';
+
+  if (studentType==='sibling' && !mainStudentId) { toast('대표자녀를 선택하세요','error'); return; }
+
+  const data = {
+    name, studentType, mainStudentId,
+    joinDate: document.getElementById('student-joindate-input').value || '',
+    grade: document.getElementById('student-grade-input').value || '',
+    school: document.getElementById('student-school-input').value.trim() || '',
+    day: document.getElementById('student-day-input').value || '',
+    time: document.getElementById('student-time-input').value || '',
+    parent: document.getElementById('student-parent-input').value.trim() || '',
+    phone: document.getElementById('student-phone-input').value.trim() || '',
+    note: document.getElementById('student-note-input').value.trim() || '',
+    active: true,
+  };
+
+  if (isEdit) {
+    await db.collection('students').doc(editingStudentId).update(data);
+    // 형제자매로 변경됐으면 대표자녀 펼치기
+    if (studentType==='sibling' && mainStudentId) expandedMainIds.add(mainStudentId);
+    closeModal('student-modal');
+    toast(name + ' 정보가 수정되었습니다 ✓','success');
+    editingStudentId = null;
+  } else {
+    data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+    const id = 'st_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+    await db.collection('students').doc(id).set(data);
+    closeModal('student-modal');
+    toast(name + ' 학생이 추가되었습니다 ✓','success');
+    // 형제자매면 대표자녀 펼치기
+    if (studentType==='sibling' && mainStudentId) expandedMainIds.add(mainStudentId);
+  }
+  resetStudentModal();
+  await loadStudents(); await loadDashboard();
+  renderTimetable();
+}
+
+function resetStudentModal() {
+  ['student-name-input','student-school-input','student-parent-input','student-phone-input','student-note-input',
+   'sibling-main-search','sibling-main-id'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  ['student-joindate-input','student-grade-input','student-day-input','student-time-input'].forEach(id=>{
+    const el=document.getElementById(id); if(el) el.value='';
+  });
+  const selEl = document.getElementById('sibling-main-selected');
+  if (selEl) { selEl.style.display='none'; selEl.textContent=''; }
+  const resEl = document.getElementById('sibling-main-results');
+  if (resEl) resEl.innerHTML='';
+  document.getElementById('student-modal-title').innerHTML = '학생 추가 <button class="modal-close" onclick="closeModal(\'student-modal\')">✕</button>';
+  document.getElementById('student-modal-btn').textContent = '추가';
+  document.getElementById('student-modal-btn').onclick = addStudent;
+  editingStudentId = null;
+  setStudentType('main');
+}
+
+function openEditStudent(studentId) {
+  const sid = studentId || viewingStudentId;
+  const s = allStudents.find(s=>s.id===sid);
+  if (!s) return;
+  editingStudentId = sid;
+  closeModal('student-info-modal');
+  document.getElementById('student-modal-title').innerHTML = '학생 수정 <button class="modal-close" onclick="closeModal(\'student-modal\')">✕</button>';
+  document.getElementById('student-modal-btn').textContent = '저장';
+  document.getElementById('student-name-input').value = s.name||'';
+  document.getElementById('student-joindate-input').value = s.joinDate||'';
+  document.getElementById('student-grade-input').value = s.grade||'';
+  document.getElementById('student-school-input').value = s.school||'';
+  document.getElementById('student-day-input').value = s.day||'';
+  document.getElementById('student-time-input').value = s.time||'';
+  document.getElementById('student-parent-input').value = s.parent||'';
+  document.getElementById('student-phone-input').value = s.phone||'';
+  document.getElementById('student-note-input').value = s.note||'';
+  // 구분 표시
+  setStudentType(s.studentType||'main');
+  if (s.studentType==='sibling' && s.mainStudentId) {
+    const main = allStudents.find(m=>m.id===s.mainStudentId);
+    if (main) {
+      document.getElementById('sibling-main-id').value = s.mainStudentId;
+      document.getElementById('sibling-main-search').value = main.name;
+      document.getElementById('sibling-main-selected').style.display='block';
+      document.getElementById('sibling-main-selected').textContent=`✓ 대표자녀: ${main.name}`;
+    }
+  }
+  openModal('student-modal');
+}
+
+async function deleteStudent(id, name) {
+  if (!confirm('"' + name + '" 학생을 삭제하시겠습니까?')) return;
+
+  // 해당 학생 기록 수 확인
+  const snap = await db.collection('results').where('studentId','==',id).get();
+  if (snap.size > 0) {
+    const deleteRecords = confirm(
+      `"${name}" 학생의 퀴즈 기록이 ${snap.size}개 있습니다.\n기록도 함께 삭제하시겠습니까?\n\n확인 → 학생 + 기록 모두 삭제\n취소 → 학생만 삭제`
+    );
+    if (deleteRecords) {
+      const batch = db.batch();
+      snap.forEach(d => batch.delete(d.ref));
+      await batch.commit();
+    }
+  }
+
+  await db.collection('students').doc(id).delete();
+  toast(name + ' 학생이 삭제되었습니다', 'success');
+  await loadStudents(); await loadDashboard();
+}
+
+function showStudentLink(id, name) {
+  document.getElementById('link-modal-name').textContent = '— ' + name;
+  document.getElementById('link-modal-url').textContent = getStudentUrl(id);
+  openModal('link-modal');
+}
+function copyStudentLink() {
+  navigator.clipboard.writeText(document.getElementById('link-modal-url').textContent)
+    .then(() => toast('링크가 복사되었습니다 📋','success'));
+}
+
+// ── 학생 정보 모달
+let viewingStudentId = null;
+function showStudentInfo(studentId) {
+  const s = allStudents.find(s=>s.id===studentId);
+  if (!s) return;
+  viewingStudentId = studentId;
+  const currentGrade = calcCurrentGrade(s.grade, s.joinDate);
+  document.getElementById('student-info-content').innerHTML = `
+    <div class="student-info-grid">
+      <div><div class="info-label">학생 이름</div><div class="info-val">${s.name}</div></div>
+      <div><div class="info-label">가입일자</div><div class="info-val">${s.joinDate||'-'}</div></div>
+      <div><div class="info-label">가입학년</div><div class="info-val">${s.grade||'-'}</div></div>
+      <div><div class="info-label">현재학년</div><div class="info-val"><span class="badge badge-blue">${currentGrade||'-'}</span></div></div>
+      <div><div class="info-label">학교</div><div class="info-val">${s.school||'-'}</div></div>
+      <div><div class="info-label">요일/시간</div><div class="info-val">${s.day||'-'} ${s.time||''}</div></div>
+      <div><div class="info-label">학부모명</div><div class="info-val">${s.parent||'-'}</div></div>
+      <div><div class="info-label">전화번호</div><div class="info-val">${s.phone||'-'}</div></div>
+    </div>
+    ${s.note?`<div style="margin-top:1rem;padding:.75rem;background:var(--bg);border-radius:8px;font-size:.875rem"><span class="text-dim">기타:</span> ${s.note}</div>`:''}`;
+  openModal('student-info-modal');
+}
+
+// ── 시간표
+const TT_DAYS = ['월','화','수','목','금','토'];
+const TT_TIMES = ['10시','10시반','11시','11시반','12시','12시반','2시','2시반','3시','3시반','4시','4시반'];
+
+function renderTimetable() {
+  const wrap = document.getElementById('timetable-wrap');
+  if (!wrap) return;
+
+  // 시간표 데이터: day+time → [studentIds]
+  const cells = {};
+  TT_DAYS.forEach(d => TT_TIMES.forEach(t => { cells[d+'|'+t] = []; }));
+  allStudents.forEach(s => {
+    if (s.day && s.time && cells[s.day+'|'+s.time] !== undefined) {
+      cells[s.day+'|'+s.time].push(s);
+    }
+  });
+
+  let html = `<table class="timetable"><thead><tr><th>시간</th>`;
+  TT_DAYS.forEach(d => html += `<th>${d}요일</th>`);
+  html += `</tr></thead><tbody>`;
+
+  TT_TIMES.forEach(t => {
+    html += `<tr><td style="background:var(--surface2);font-family:'Space Mono',monospace;font-size:.78rem;color:var(--text-dim);white-space:nowrap;text-align:center;font-weight:700">${t}</td>`;
+    TT_DAYS.forEach(d => {
+      const key = d+'|'+t;
+      const students = cells[key];
+      html += `<td>`;
+      students.forEach(s => {
+        html += `<span class="tt-student" onclick="showStudentInfo('${s.id}')">${s.name}</span>`;
+      });
+      html += `<span class="tt-add-btn" onclick="openTimetableAdd('${d}','${t}')" title="학생 추가">+</span>`;
+      html += `</td>`;
+    });
+    html += `</tr>`;
+  });
+  html += `</tbody></table>`;
+  wrap.innerHTML = html;
+}
+
+function openTimetableAdd(day, time) {
+  const name = prompt(`[${day}요일 ${time}] 추가할 학생 이름을 입력하세요:`);
+  if (!name || !name.trim()) return;
+  const trimmed = name.trim();
+
+  // 이미 이 슬롯에 있는 학생인지 확인
+  const alreadyInSlot = allStudents.find(s=>s.name===trimmed && s.day===day && s.time===time);
+  if (alreadyInSlot) { toast(`${trimmed} 학생은 이미 이 시간에 배정되어 있습니다`,'error'); return; }
+
+  // 등록된 학생인지 확인
+  const existing = allStudents.find(s=>s.name===trimmed);
+  if (existing) {
+    // 등록된 학생 → 바로 이 시간으로 배정
+    db.collection('students').doc(existing.id).update({ day, time }).then(async () => {
+      toast(`${trimmed} → ${day}요일 ${time} 배정됨 ✓`,'success');
+      await loadStudents();
+      renderTimetable();
+    });
+  } else {
+    // 미등록 학생 → 새 학생 등록 여부 확인
+    const confirmed = confirm(`"${trimmed}"은 등록되지 않은 학생입니다.\n새 학생으로 등록하시겠습니까?\n\n확인: 새 학생 등록 + 시간표 배정\n취소: 취소`);
+    if (!confirmed) return;
+
+    const id = 'st_' + Date.now() + '_' + Math.random().toString(36).slice(2,7);
+    db.collection('students').doc(id).set({
+      name: trimmed, day, time,
+      joinDate: '', grade: '', school: '', parent: '', phone: '', note: '',
+      active: true,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    }).then(async () => {
+      await loadStudents();
+      renderTimetable();
+      // 링크 바로 보여주기
+      document.getElementById('link-modal-name').textContent = '— ' + trimmed;
+      document.getElementById('link-modal-url').textContent = getStudentUrl(id);
+      openModal('link-modal');
+      toast(`${trimmed} 학생 등록 완료! 링크가 생성되었습니다 ✓`,'success');
+    });
+  }
+}
+
+// ── SERIES
+async function loadSeries() {
+  const snap = await db.collection('series').get();
+  allSeries = [];
+  snap.forEach(d => allSeries.push({id:d.id,...d.data()}));
+  renderSeriesList(); populateSeriesSelects();
+}
+
+function renderSeriesList() {
+  const el = document.getElementById('series-list-wrap');
+  if (!allSeries.length) { el.innerHTML='<div class="empty-state"><div class="empty-icon">📚</div>등록된 시리즈가 없습니다</div>'; return; }
+  const grouped = {'1':[],'2':[],'3':[],'4':[]};
+  allSeries.forEach(s => { const lv = String(s.level||'4'); if(!grouped[lv]) grouped[lv]=[]; grouped[lv].push(s); });
+  Object.values(grouped).forEach(arr => arr.sort((a,b)=>a.name.localeCompare(b.name)));
+  let html = '';
+  for (const lv of ['1','2','3','4']) {
+    const lvi = LEVELS[lv], list = grouped[lv]||[];
+    if (!list.length) continue;
+    html += `<div style="margin-bottom:.5rem;padding:.4rem .75rem;background:var(--surface2);border-radius:6px;font-size:.82rem;font-weight:700;color:var(--text-dim)">${lvi.icon} ${lv}단계 — ${lvi.label} <span style="opacity:.6">(${list.length}개)</span></div>`;
+    html += `<table class="data-table" style="margin-bottom:1.5rem"><thead><tr><th>시리즈</th><th>권수</th><th>편집</th><th>삭제</th></tr></thead><tbody>`;
+    html += list.map(s => `<tr>
+      <td>${s.icon||'📚'} <strong>${s.name}</strong></td>
+      <td>${s.totalBooks}권</td>
+      <td><button class="btn btn-secondary btn-sm" style="padding:.28rem .6rem;font-size:.75rem" onclick="openEditTitlesModal('${s.id}')">✏️ 편집</button></td>
+      <td><button class="btn btn-danger btn-sm" style="padding:.28rem .6rem;font-size:.75rem" onclick="deleteSeries('${s.id}','${s.name}')">삭제</button></td>
+    </tr>`).join('');
+    html += '</tbody></table>';
+  }
+  el.innerHTML = html;
+}
+
+async function addSeries() {
+  const name = document.getElementById('series-name-input').value.trim();
+  const totalBooks = parseInt(document.getElementById('series-count-input').value);
+  const icon = document.getElementById('series-icon-input').value.trim() || '📚';
+  const level = document.getElementById('series-level-input').value || '4';
+  if (!name) { toast('시리즈 이름을 입력하세요','error'); return; }
+  if (!totalBooks||totalBooks<1) { toast('총 권수를 입력하세요','error'); return; }
+  const bookTitles = {};
+  for (let i=1; i<=totalBooks; i++) {
+    const el = document.getElementById('book-title-'+i);
+    if (el && el.value.trim()) bookTitles[i] = el.value.trim();
+  }
+  const id = 'sr_' + Date.now();
+  await db.collection('series').doc(id).set({ name, totalBooks, icon, level, bookTitles, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+  closeModal('series-modal');
+  resetSeriesModal();
+  toast(name + ' 시리즈가 추가되었습니다 ✓','success');
+  await loadSeries();
+}
+
+function generateBookTitleInputs() {
+  const totalBooks = parseInt(document.getElementById('series-count-input').value);
+  const wrap = document.getElementById('book-titles-wrap');
+  const list = document.getElementById('book-titles-list');
+  if (!totalBooks || totalBooks < 1) { wrap.style.display='none'; list.innerHTML=''; return; }
+  wrap.style.display = 'block';
+  list.innerHTML = Array.from({length:totalBooks},(_,i)=>i+1).map(n=>`
+    <div style="display:flex;align-items:center;gap:.5rem">
+      <span style="font-family:'Space Mono',monospace;font-size:.8rem;color:var(--accent);min-width:32px;text-align:right">${n}</span>
+      <input type="text" id="book-title-${n}" class="form-input" style="font-size:.85rem;padding:.45rem .75rem" placeholder="${n}권 제목 (선택)">
+    </div>`).join('');
+}
+
+function clearAllTitles() {
+  document.querySelectorAll('[id^="book-title-"]').forEach(el => el.value='');
+}
+
+function resetSeriesModal() {
+  ['series-name-input','series-count-input','series-icon-input'].forEach(i => document.getElementById(i).value='');
+  document.getElementById('book-titles-wrap').style.display='none';
+  document.getElementById('book-titles-list').innerHTML='';
+}
+
+async function deleteSeries(id, name) {
+  if (!confirm('"' + name + '" 시리즈를 삭제하시겠습니까?')) return;
+  await db.collection('series').doc(id).delete();
+  toast(name + ' 시리즈가 삭제되었습니다');
+  await loadSeries();
+}
+
+let editingSeriesId = null;
+let editingSeriesOriginalBooks = 0;
+
+function openEditTitlesModal(seriesId) {
+  const series = allSeries.find(s=>s.id===seriesId);
+  if (!series) return;
+  editingSeriesId = seriesId;
+  editingSeriesOriginalBooks = series.totalBooks;
+  document.getElementById('edit-titles-series-name').textContent = series.name;
+  document.getElementById('edit-series-level').value = String(series.level||'4');
+  document.getElementById('edit-series-totalbooks').value = series.totalBooks;
+  renderEditTitlesList(series.totalBooks, series.bookTitles||{});
+  openModal('edit-titles-modal');
+}
+
+function renderEditTitlesList(total, existingTitles) {
+  document.getElementById('edit-titles-list').innerHTML =
+    Array.from({length:total},(_,i)=>i+1).map(n=>`
+      <div style="display:flex;align-items:center;gap:.5rem">
+        <span style="font-family:'Space Mono',monospace;font-size:.8rem;color:${n>editingSeriesOriginalBooks?'var(--success)':'var(--accent)'};min-width:32px;text-align:right">${n}${n>editingSeriesOriginalBooks?' ✨':''}</span>
+        <input type="text" id="edit-title-${n}" class="form-input" style="font-size:.85rem;padding:.45rem .75rem"
+          placeholder="${n}권 제목 (선택)"
+          value="${existingTitles[n]||''}">
+      </div>`).join('');
+}
+
+function updateEditTitlesList() {
+  const series = allSeries.find(s=>s.id===editingSeriesId);
+  if (!series) return;
+  const newTotal = parseInt(document.getElementById('edit-series-totalbooks').value);
+  if (!newTotal || newTotal < 1) { toast('권수를 올바르게 입력하세요','error'); return; }
+  if (newTotal < editingSeriesOriginalBooks) {
+    if (!confirm(`권수를 ${editingSeriesOriginalBooks}권에서 ${newTotal}권으로 줄이시겠습니까?\n줄어든 권의 제목 정보가 삭제됩니다.`)) {
+      document.getElementById('edit-series-totalbooks').value = editingSeriesOriginalBooks;
+      return;
+    }
+  }
+  // 현재 입력된 제목 값 보존
+  const currentTitles = {};
+  for (let i=1; i<=Math.max(editingSeriesOriginalBooks, newTotal); i++) {
+    const el = document.getElementById('edit-title-'+i);
+    if (el && el.value.trim()) currentTitles[i] = el.value.trim();
+  }
+  renderEditTitlesList(newTotal, currentTitles);
+}
+
+async function saveEditedTitles() {
+  const series = allSeries.find(s=>s.id===editingSeriesId);
+  if (!series) return;
+  const newTotal = parseInt(document.getElementById('edit-series-totalbooks').value) || series.totalBooks;
+  const bookTitles = {};
+  for (let i=1; i<=newTotal; i++) {
+    const el = document.getElementById('edit-title-'+i);
+    if (el && el.value.trim()) bookTitles[i] = el.value.trim();
+  }
+  const level = document.getElementById('edit-series-level').value;
+  await db.collection('series').doc(editingSeriesId).update({ bookTitles, level, totalBooks: newTotal });
+  closeModal('edit-titles-modal');
+  toast('저장되었습니다 ✓','success');
+  await loadSeries();
+}
+
+function populateSeriesSelects() {
+  const sorted = [...allSeries].sort((a,b) => a.name.localeCompare(b.name));
+  const opts = '<option value="">-- 시리즈 선택 --</option>' + sorted.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  document.getElementById('quiz-series-select').innerHTML = opts;
+  const all = '<option value="">전체 시리즈</option>' + sorted.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  document.getElementById('quiz-filter-series').innerHTML = all;
+  document.getElementById('result-filter-series').innerHTML = all;
+}
+
+async function loadBooksForSelect() {
+  const seriesId = document.getElementById('quiz-series-select').value;
+  const sel = document.getElementById('quiz-book-select');
+  if (!seriesId) { sel.innerHTML='<option value="">-- 권호 선택 --</option>'; return; }
+  const series = allSeries.find(s=>s.id===seriesId);
+  sel.innerHTML = '<option value="">-- 권호 선택 --</option>' +
+    Array.from({length:series.totalBooks},(_,i)=>i+1).map(n=>{
+      const title = series.bookTitles && series.bookTitles[n] ? ` — ${series.bookTitles[n]}` : '';
+      return `<option value="${n}">${n}권${title}</option>`;
+    }).join('');
+}
+
+// ── QUIZ PARSER
+async function handleFileSelect(e) {
+  const file = e.target.files[0]; if(!file) return;
+  await parseDocxFile(file); e.target.value='';
+}
+async function handleFileDrop(e) {
+  e.preventDefault(); e.currentTarget.classList.remove('dragover');
+  const file = e.dataTransfer.files[0]; if(file) await parseDocxFile(file);
+}
+async function parseDocxFile(file) {
+  try {
+    const buf = await file.arrayBuffer();
+    const result = await mammoth.extractRawText({arrayBuffer:buf});
+    parseQuizText(result.value);
+  } catch(e) { toast('파일 파싱 오류: '+e.message,'error'); }
+}
+function parsePastedText() {
+  const text = document.getElementById('quiz-paste-text').value;
+  if (!text.trim()) { toast('텍스트를 붙여넣으세요','error'); return; }
+  parseQuizText(text);
+}
+
+function parseQuizText(text) {
+  parsedQuestions = [];
+  const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').map(l=>l.trim()).filter(l=>l);
+
+  // ── 정답 키 파싱 (다양한 형식 지원)
+  // 예: "1.A 2.B" / "1.A. 2.B." / "1. A 2. B" / "1)A 2)B" 등
+  const answers = {};
+
+  // 방법1: 한 줄에 모두 있는 경우 - 가장 많이 일치하는 줄 찾기
+  let bestLine = null, bestCount = 0;
+  for (const line of lines) {
+    // "1.A." 형식도 잡도록 점 뒤 선택적 점 추가
+    const matches = [...line.matchAll(/(\d+)\s*[\.\)\:]\s*([ABCD])\.?/gi)];
+    if (matches.length > bestCount) { bestCount = matches.length; bestLine = line; }
+  }
+  if (bestLine && bestCount >= 3) {
+    [...bestLine.matchAll(/(\d+)\s*[\.\)\:]\s*([ABCD])\.?/gi)].forEach(m => {
+      answers[parseInt(m[1])] = m[2].toUpperCase();
+    });
+  }
+
+  // 방법2: 정답만 있는 줄들 (예: 맨 아래 "A B C D A ..." 형식)
+  if (Object.keys(answers).length < 3) {
+    const abcdLine = lines.find(l => /^([ABCD]\s+){4,}/i.test(l));
+    if (abcdLine) {
+      const letters = abcdLine.trim().split(/\s+/).map(x=>x.toUpperCase());
+      letters.forEach((l,i) => { if(/^[ABCD]$/.test(l)) answers[i+1]=l; });
+    }
+  }
+
+  // ── 문제 블록 파싱
+  // 정답 키로 판단된 줄들의 패턴
+  const isAnswerKeyLine = (line) => {
+    const m = [...line.matchAll(/(\d+)\s*[\.\)\:]\s*([ABCD])\.?/gi)];
+    return m.length >= 3;
+  };
+
+  let blocks=[], cur=null;
+  for (const line of lines) {
+    if (isAnswerKeyLine(line)) continue; // 정답 키 줄 스킵
+
+    // 문제 시작: "1." "1)" "1 ." 등
+    const qm = line.match(/^(\d+)\s*[\.\)]\s+(.+)/);
+    if (qm && parseInt(qm[1])>=1) {
+      if (cur) blocks.push(cur);
+      cur = {num:parseInt(qm[1]),text:qm[2],options:{}};
+      continue;
+    }
+    if (!cur) continue;
+
+    // 보기: "A." "A)" "(A)" "A " 시작
+    const om = line.match(/^([ABCD])[\.\)]\s*(.+)/i) || line.match(/^\(([ABCD])\)\s*(.+)/i);
+    if (om) { cur.options[om[1].toUpperCase()] = om[2].trim(); continue; }
+
+    // 한 줄에 보기 4개: "A. foo  B. bar  C. baz  D. qux"
+    if (Object.keys(cur.options).length === 0) {
+      const inline = [...line.matchAll(/([ABCD])[\.\)]\s+([^ABCD\.\)\n]{1,40})/gi)];
+      if (inline.length >= 2) {
+        inline.forEach(m => { cur.options[m[1].toUpperCase()] = m[2].trim(); });
+        continue;
+      }
+    }
+
+    // 문제 텍스트 이어붙이기 (보기가 아직 없을 때)
+    if (Object.keys(cur.options).length === 0) cur.text += ' ' + line;
+  }
+  if (cur) blocks.push(cur);
+
+  parsedQuestions = blocks
+    .filter(q => q.num>=1 && Object.keys(q.options).length>=2)
+    .map(q => ({num:q.num, question:q.text.trim(), options:q.options, answer:answers[q.num]||''}));
+
+  if (!parsedQuestions.length) { toast('문제를 인식하지 못했습니다. 형식을 확인해주세요.','error'); return; }
+  const noAnswer = parsedQuestions.filter(q=>!q.answer).length;
+  document.getElementById('parsed-count').textContent =
+    parsedQuestions.length+'문제 인식됨' + (noAnswer>0?` (⚠ 정답 미확인 ${noAnswer}개)`:'');
+  document.getElementById('parsed-preview').innerHTML = parsedQuestions.map(q=>`
+    <div class="parsed-q">
+      <strong>${q.num}.</strong> ${q.question}
+      <div style="margin-top:.3rem;display:flex;gap:.5rem;flex-wrap:wrap">
+        ${Object.entries(q.options).map(([k,v])=>`<span style="font-size:.8rem"><b>${k}.</b> ${v}</span>`).join(' ')}
+      </div>
+      ${q.answer?`<div class="parsed-a" style="font-size:.8rem;margin-top:.2rem">✓ 정답: ${q.answer}</div>`:'<div style="color:var(--warning);font-size:.8rem">⚠ 정답 미확인</div>'}
+    </div>`).join('');
+  document.getElementById('parsed-result').style.display='block';
+}
+
+function clearParsed() {
+  parsedQuestions=[];
+  document.getElementById('parsed-result').style.display='none';
+  document.getElementById('quiz-paste-text').value='';
+}
+
+async function saveQuiz() {
+  const seriesId = document.getElementById('quiz-series-select').value;
+  const bookNum = parseInt(document.getElementById('quiz-book-select').value);
+  if (!seriesId) { toast('시리즈를 선택하세요','error'); return; }
+  if (!bookNum) { toast('권호를 선택하세요','error'); return; }
+  if (!parsedQuestions.length) { toast('파싱된 문제가 없습니다','error'); return; }
+
+  const series = allSeries.find(s=>s.id===seriesId);
+  const quizId = seriesId+'_'+bookNum;
+
+  // 기존 퀴즈가 있는지 확인
+  const existing = await db.collection('quizzes').doc(quizId).get();
+  let finalQuestions = parsedQuestions;
+
+  if (existing.exists) {
+    const existingQs = existing.data().questions || [];
+    const choice = confirm(
+      `${series?.name} ${bookNum}권에 이미 ${existingQs.length}개 문제가 있습니다.\n\n` +
+      `확인 → 기존 문제에 새 문제 추가 (총 ${existingQs.length + parsedQuestions.length}개)\n` +
+      `취소 → 기존 문제 삭제 후 새 문제로 교체 (${parsedQuestions.length}개)`
+    );
+    if (choice) {
+      // 중복 문제 제거 후 추가 (문제 텍스트 기준)
+      const existingTexts = new Set(existingQs.map(q=>q.question.trim()));
+      const newOnly = parsedQuestions.filter(q=>!existingTexts.has(q.question.trim()));
+      finalQuestions = [...existingQs, ...newOnly];
+      if (newOnly.length < parsedQuestions.length) {
+        toast(`중복 문제 ${parsedQuestions.length - newOnly.length}개 제외, ${newOnly.length}개 추가됨`, 'info');
+      }
+    }
+  }
+
+  await db.collection('quizzes').doc(quizId).set({
+    seriesId, seriesName:series?.name||'', bookNum,
+    questions: finalQuestions, createdAt: new Date()
+  });
+  toast(`${series?.name} ${bookNum}권 — 총 ${finalQuestions.length}문제 저장 ✓`, 'success');
+  clearParsed(); await loadDashboard(); await loadQuizList();
+}
+
+// ── QUIZ LIST
+let quizCache = {}; // quizId -> quizData 캐시
+
+async function loadQuizList() {
+  const snap = await db.collection('quizzes').get();
+  const fs = document.getElementById('quiz-filter-series').value;
+  let quizzes=[];
+  snap.forEach(d=>{ const data={id:d.id,...d.data()}; quizzes.push(data); quizCache[d.id]=data; });
+  if (fs) quizzes=quizzes.filter(q=>q.seriesId===fs);
+  quizzes.sort((a,b)=>a.seriesName<b.seriesName?-1:a.seriesName>b.seriesName?1:a.bookNum-b.bookNum);
+  const el=document.getElementById('quiz-list-wrap');
+  if (!quizzes.length) { el.innerHTML='<div class="empty-state"><div class="empty-icon">📝</div>등록된 퀴즈가 없습니다</div>'; return; }
+
+  // 시리즈 전체 다운로드 버튼 (필터된 시리즈가 있을 때)
+  const dlAllBtn = fs
+    ? `<div style="margin-bottom:.75rem;display:flex;justify-content:flex-end">
+        <button class="btn btn-secondary btn-sm" onclick="downloadSeriesAll('${fs}')">⬇️ 이 시리즈 전체 다운로드</button>
+       </div>` : '';
+
+  el.innerHTML= dlAllBtn + `<table class="data-table"><thead><tr><th>시리즈</th><th>권</th><th>문제 수</th><th>수정</th><th>받기</th><th>삭제</th></tr></thead><tbody>
+    ${quizzes.map(q=>{
+      const series = allSeries.find(s=>s.id===q.seriesId);
+      const titleTip = series?.bookTitles?.[q.bookNum] ? ` title="${series.bookTitles[q.bookNum]}" style="cursor:help;text-decoration:underline dotted;text-underline-offset:3px"` : '';
+      return `<tr>
+        <td>${q.seriesName}</td>
+        <td><span${titleTip}>${q.bookNum}권</span></td>
+        <td><span class="badge badge-blue">${q.questions?.length||0}개</span></td>
+        <td><button class="btn btn-secondary btn-sm" style="padding:.28rem .6rem;font-size:.75rem" data-quiz-id="${q.id}" onclick="openQuizPreview(this.dataset.quizId)">👁 수정</button></td>
+        <td><button class="btn btn-secondary btn-sm" style="padding:.28rem .6rem;font-size:.75rem" data-quiz-id="${q.id}" onclick="downloadQuiz(this.dataset.quizId)">⬇️</button></td>
+        <td><button class="btn btn-danger btn-sm" style="padding:.28rem .6rem;font-size:.75rem" data-quiz-id="${q.id}" data-label="${q.seriesName} ${q.bookNum}권" onclick="deleteQuiz(this.dataset.quizId,this.dataset.label)">삭제</button></td>
+      </tr>`;
+    }).join('')}
+  </tbody></table>`;
+}
+
+async function deleteQuiz(id, label) {
+  if (!confirm('"'+label+'" 퀴즈를 삭제하시겠습니까?')) return;
+  await db.collection('quizzes').doc(id).delete();
+  toast(label+' 퀴즈가 삭제되었습니다');
+  await loadQuizList(); await loadDashboard();
+}
+
+// ── 퀴즈 다운로드 (Word 호환 .doc)
+function quizToDocContent(quizData) {
+  const qs = quizData.questions || [];
+  const title = `${quizData.seriesName} ${quizData.bookNum}권 퀴즈`;
+  let body = '';
+  qs.forEach((q,i) => {
+    body += `${i+1}. ${q.question}\n`;
+    ['A','B','C','D'].forEach(k => {
+      if (q.options && q.options[k]) body += `${k}. ${q.options[k]}\n`;
+    });
+    body += '\n';
+  });
+  // 정답 키
+  const answerKey = qs.map((q,i) => `${i+1}.${q.answer||'?'}`).join('  ');
+  body += `\n[정답]\n${answerKey}\n`;
+  return { title, body };
+}
+
+function downloadAsDoc(title, body) {
+  // Word가 열 수 있는 HTML 기반 .doc
+  const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office'
+    xmlns:w='urn:schemas-microsoft-com:office:word'
+    xmlns='http://www.w3.org/TR/REC-html40'>
+  <head><meta charset='utf-8'><title>${title}</title>
+  <style>
+    body { font-family: 맑은고딕, Arial, sans-serif; font-size: 12pt; line-height: 1.8; margin: 2cm; }
+    h2 { font-size: 14pt; margin-bottom: 16pt; }
+    .question { margin-bottom: 14pt; }
+    .answer-key { margin-top: 24pt; border-top: 1px solid #999; padding-top: 10pt; font-size: 11pt; color: #444; }
+  </style></head>
+  <body>
+  <h2>${title}</h2>
+  ${(body.split('\n\n').slice(0,-2)).map((block, idx) => {
+    const lines = block.split('\n').filter(l=>l.trim());
+    if (!lines.length) return '';
+    return `<div class="question">${lines.map((l,i) => i===0 ? `<b>${l}</b>` : l).join('<br>')}</div>`;
+  }).join('')}
+  <div class="answer-key">${body.split('\n[정답]\n')[1]||''}</div>
+  </body></html>`;
+
+  const blob = new Blob(['\ufeff'+html], {type:'application/msword'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = title.replace(/[\/\\:*?"<>|]/g,'_') + '.doc';
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function downloadQuiz(quizId) {
+  const quizData = quizCache[quizId];
+  if (!quizData) { toast('퀴즈 데이터를 찾을 수 없습니다','error'); return; }
+  const { title, body } = quizToDocContent(quizData);
+  downloadAsDoc(title, body);
+  toast(`"${title}" 다운로드 완료 ✓`, 'success');
+}
+
+async function downloadSeriesAll(seriesId) {
+  const series = allSeries.find(s=>s.id===seriesId);
+  if (!series) return;
+  toast('다운로드 준비 중...', 'info');
+
+  // 해당 시리즈의 모든 퀴즈 수집
+  const snap = await db.collection('quizzes').where('seriesId','==',seriesId).get();
+  const quizzes = [];
+  snap.forEach(d => quizzes.push({id:d.id,...d.data()}));
+  quizzes.sort((a,b) => a.bookNum - b.bookNum);
+
+  if (!quizzes.length) { toast('다운로드할 퀴즈가 없습니다','error'); return; }
+
+  // 전체를 하나의 Word 파일로
+  const title = `${series.name} 전체 퀴즈`;
+  let fullBody = '';
+  quizzes.forEach(q => {
+    const { title: t, body } = quizToDocContent(q);
+    fullBody += `\n\n═══════════════════════════════\n${t}\n═══════════════════════════════\n${body}`;
+  });
+
+  const html = `<html xmlns:o='urn:schemas-microsoft-com:office:office'
+    xmlns:w='urn:schemas-microsoft-com:office:word'
+    xmlns='http://www.w3.org/TR/REC-html40'>
+  <head><meta charset='utf-8'><title>${title}</title>
+  <style>
+    body { font-family: 맑은고딕, Arial, sans-serif; font-size: 12pt; line-height: 1.8; margin: 2cm; }
+    h1 { font-size: 16pt; margin-bottom: 8pt; }
+    h2 { font-size: 13pt; margin-top: 24pt; margin-bottom: 12pt; border-bottom: 1px solid #ccc; padding-bottom: 4pt; }
+    .question { margin-bottom: 14pt; }
+    .answer-key { margin-top: 16pt; border-top: 1px solid #999; padding-top: 8pt; font-size: 11pt; color: #444; margin-bottom: 24pt; }
+  </style></head>
+  <body>
+  <h1>${title} (총 ${quizzes.length}권)</h1>
+  ${quizzes.map(qd => {
+    const qs = qd.questions||[];
+    const answerKey = qs.map((q,i)=>`${i+1}.${q.answer||'?'}`).join('  ');
+    return `<h2>${qd.seriesName} ${qd.bookNum}권</h2>
+    ${qs.map((q,i)=>`<div class="question"><b>${i+1}. ${q.question}</b><br>
+      ${['A','B','C','D'].filter(k=>q.options&&q.options[k]).map(k=>`${k}. ${q.options[k]}`).join('<br>')}
+    </div>`).join('')}
+    <div class="answer-key">[정답] ${answerKey}</div>`;
+  }).join('')}
+  </body></html>`;
+
+  const blob = new Blob(['\ufeff'+html], {type:'application/msword'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = title.replace(/[\/\\:*?"<>|]/g,'_') + '.doc';
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(`"${title}" 다운로드 완료 ✓ (${quizzes.length}권)`, 'success');
+}
+
+// ── 퀴즈 미리보기 & 수정 (전체 스크롤 방식)
+let previewQuiz = null, previewEditing = false;
+// previewIdx는 이제 편집 중인 문제 번호로만 사용
+let previewIdx = 0;
+
+function openQuizPreview(quizId) {
+  const quizData = quizCache[quizId];
+  if (!quizData) { toast('퀴즈 데이터를 찾을 수 없습니다','error'); return; }
+  previewQuiz = JSON.parse(JSON.stringify(quizData));
+  document.getElementById('quiz-preview-title').textContent =
+    `${previewQuiz.seriesName} ${previewQuiz.bookNum}권`;
+  renderAllPreview();
+  openModal('quiz-preview-modal');
+}
+
+function renderAllPreview() {
+  const qs = previewQuiz.questions;
+  const total = qs.length;
+  document.getElementById('quiz-preview-stats').innerHTML =
+    `<span>총 <strong style="color:var(--accent)">${total}문제</strong> (문제은행)</span>
+     <span class="text-dim">·</span>
+     <span class="text-dim text-sm">학생에게는 랜덤 10문제 출제</span>
+     <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="addNewQuestion()">+ 문제 추가</button>`;
+
+  document.getElementById('quiz-preview-body').innerHTML = qs.map((q, idx) => `
+    <div id="preview-q-${idx}" style="background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:1rem">
+      <div style="display:flex;align-items:flex-start;gap:.5rem;margin-bottom:.75rem">
+        <span style="font-family:'Space Mono',monospace;font-size:.8rem;color:var(--text-dim);min-width:24px;margin-top:2px">${idx+1}</span>
+        <div style="flex:1;font-weight:500;line-height:1.6">${q.question}</div>
+        <div style="display:flex;gap:.3rem;flex-shrink:0">
+          <button class="btn btn-secondary btn-sm" onclick="editQuestion(${idx})">✏️</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteQuestion(${idx})">🗑</button>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:.3rem;margin-bottom:.5rem">
+        ${['A','B','C','D'].filter(k=>q.options&&q.options[k]).map(k=>`
+          <div style="display:flex;gap:.5rem;padding:.3rem .5rem;border-radius:6px;font-size:.85rem;
+            background:${k===q.answer?'rgba(76,255,176,0.1)':'transparent'};
+            border:1px solid ${k===q.answer?'rgba(76,255,176,0.3)':'transparent'}">
+            <span style="font-family:'Space Mono',monospace;font-weight:700;min-width:18px;
+              color:${k===q.answer?'var(--success)':'var(--accent)'}">${k}</span>
+            <span>${q.options[k]}</span>
+            ${k===q.answer?'<span style="margin-left:auto;font-size:.72rem;color:var(--success);font-weight:700">✓ 정답</span>':''}
+          </div>`).join('')}
+      </div>
+      ${!q.answer?'<div style="font-size:.78rem;color:var(--warning)">⚠ 정답 미설정</div>':''}
+    </div>`).join('');
+}
+
+function editQuestion(idx) {
+  const q = previewQuiz.questions[idx];
+  const el = document.getElementById('preview-q-'+idx);
+  el.innerHTML = `
+    <div style="display:flex;align-items:center;gap:.5rem;margin-bottom:.75rem">
+      <span style="font-family:'Space Mono',monospace;font-size:.8rem;color:var(--accent);min-width:24px">${idx+1}</span>
+      <strong style="font-size:.85rem">문제 수정</strong>
+    </div>
+    <div class="form-group">
+      <textarea id="pedit-q-${idx}" class="form-textarea" style="min-height:70px;font-size:.9rem">${q.question}</textarea>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:.4rem;margin-bottom:.75rem">
+      ${['A','B','C','D'].map(k=>`
+        <div style="display:flex;align-items:center;gap:.5rem">
+          <span style="font-family:'Space Mono',monospace;font-weight:700;color:var(--accent);min-width:20px">${k}</span>
+          <input id="pedit-opt-${idx}-${k}" class="form-input" style="font-size:.85rem;padding:.4rem .7rem" value="${q.options&&q.options[k]?q.options[k]:''}">
+        </div>`).join('')}
+    </div>
+    <div class="form-group" style="margin-bottom:.75rem">
+      <label class="form-label">정답</label>
+      <select id="pedit-ans-${idx}" class="form-select">
+        ${['A','B','C','D'].map(k=>`<option value="${k}" ${q.answer===k?'selected':''}>${k}</option>`).join('')}
+      </select>
+    </div>
+    <div style="display:flex;gap:.5rem">
+      <button class="btn btn-success btn-sm" onclick="applyQuestionEdit(${idx})">✓ 적용</button>
+      <button class="btn btn-secondary btn-sm" onclick="renderAllPreview()">취소</button>
+    </div>`;
+}
+
+function applyQuestionEdit(idx) {
+  const q = previewQuiz.questions[idx];
+  q.question = document.getElementById(`pedit-q-${idx}`).value.trim();
+  ['A','B','C','D'].forEach(k => {
+    const el = document.getElementById(`pedit-opt-${idx}-${k}`);
+    if (el) q.options[k] = el.value.trim();
+  });
+  q.answer = document.getElementById(`pedit-ans-${idx}`).value;
+  renderAllPreview();
+}
+
+function deleteQuestion(idx) {
+  if (!confirm(`문제 ${idx+1}을 삭제하시겠습니까?`)) return;
+  previewQuiz.questions.splice(idx, 1);
+  renderAllPreview();
+}
+
+function addNewQuestion() {
+  previewQuiz.questions.push({ question:'', options:{A:'',B:'',C:'',D:''}, answer:'A' });
+  renderAllPreview();
+  // 스크롤을 새 문제로 이동
+  setTimeout(() => {
+    const newIdx = previewQuiz.questions.length - 1;
+    const el = document.getElementById('preview-q-'+newIdx);
+    if (el) { el.scrollIntoView({behavior:'smooth'}); editQuestion(newIdx); }
+  }, 100);
+}
+
+async function saveAllQuizEdits() {
+  // 빈 문제 체크
+  const empty = previewQuiz.questions.filter(q => !q.question.trim());
+  if (empty.length > 0) {
+    if (!confirm(`문제 텍스트가 비어있는 항목이 ${empty.length}개 있습니다. 그래도 저장하시겠습니까?`)) return;
+  }
+  try {
+    await db.collection('quizzes').doc(previewQuiz.id).update({ questions: previewQuiz.questions });
+    quizCache[previewQuiz.id] = { ...quizCache[previewQuiz.id], questions: previewQuiz.questions };
+    toast(`총 ${previewQuiz.questions.length}문제 저장되었습니다 ✓`, 'success');
+    closeModal('quiz-preview-modal');
+    await loadQuizList();
+  } catch(e) { toast('저장 실패: '+e.message,'error'); }
+}
+
+let resultCache = {};
+
+// 개별 결과 삭제
+async function deleteOneResult(resultId) {
+  const r = resultCache[resultId];
+  if (!r) return;
+  const label = `${r.studentName} — ${r.seriesName} ${r.bookNum}권`;
+  if (!confirm(`"${label}" 기록을 삭제하시겠습니까?`)) return;
+  await db.collection('results').doc(resultId).delete();
+  delete resultCache[resultId];
+  toast('기록이 삭제되었습니다', 'success');
+  await loadResults();
+  await loadDashboard();
+}
+
+// 일괄 삭제 모달 열기
+async function openBulkDeleteModal() {
+  const sel = document.getElementById('bulk-delete-student-select');
+  sel.innerHTML = '<option value="">-- 학생 선택 --</option>' +
+    allStudents.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
+  document.getElementById('bulk-delete-preview').style.display = 'none';
+  document.getElementById('bulk-delete-confirm-btn').disabled = true;
+  sel.onchange = async () => {
+    const studentId = sel.value;
+    if (!studentId) {
+      document.getElementById('bulk-delete-preview').style.display = 'none';
+      document.getElementById('bulk-delete-confirm-btn').disabled = true;
+      return;
+    }
+    // 해당 학생 기록 수 조회
+    const snap = await db.collection('results').where('studentId','==',studentId).get();
+    const count = snap.size;
+    const preview = document.getElementById('bulk-delete-preview');
+    const student = allStudents.find(s=>s.id===studentId);
+    preview.style.display = 'block';
+    document.getElementById('bulk-delete-count').innerHTML =
+      count > 0
+        ? `<strong style="color:var(--danger)">${student?.name||''}</strong> 학생의 기록 <strong style="color:var(--danger)">${count}개</strong>가 삭제됩니다.`
+        : `<span style="color:var(--text-dim)">${student?.name||''} 학생의 기록이 없습니다.</span>`;
+    document.getElementById('bulk-delete-confirm-btn').disabled = count === 0;
+  };
+  openModal('bulk-delete-modal');
+}
+
+// 일괄 삭제 실행
+async function executeBulkDelete() {
+  const studentId = document.getElementById('bulk-delete-student-select').value;
+  const student = allStudents.find(s=>s.id===studentId);
+  if (!studentId || !student) return;
+  if (!confirm(`"${student.name}" 학생의 모든 퀴즈 기록을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
+
+  const snap = await db.collection('results').where('studentId','==',studentId).get();
+  const batch = db.batch();
+  snap.forEach(d => batch.delete(d.ref));
+  await batch.commit();
+
+  closeModal('bulk-delete-modal');
+  toast(`${student.name} 학생의 기록 ${snap.size}개가 삭제되었습니다`, 'success');
+  await loadResults();
+  await loadDashboard();
+}
+
+async function loadResults() {
+  const snap = await db.collection('results').get();
+  const fs = document.getElementById('result-filter-student').value;
+  const fsr = document.getElementById('result-filter-series').value;
+  const keyword = document.getElementById('result-filter-student-search')?.value.trim()||'';
+  let results=[];
+  snap.forEach(d=>{ const data={id:d.id,...d.data()}; results.push(data); resultCache[d.id]=data; });
+  // 이름 검색: keyword가 있으면 studentName 포함 필터
+  if (keyword) results = results.filter(r=>r.studentName&&r.studentName.includes(keyword));
+  else if (fs === '__no_match__') results = [];
+  else if (fs) results = results.filter(r=>r.studentId===fs);
+  if (fsr) results = results.filter(r=>r.seriesId===fsr);
+  results.sort((a,b)=>(b.submittedAt?.seconds||0)-(a.submittedAt?.seconds||0));
+  const el=document.getElementById('results-table-wrap');
+  if (!results.length) { el.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div>결과가 없습니다</div>'; return; }
+  el.innerHTML=`<table class="data-table"><thead><tr><th>학생</th><th>시리즈</th><th>권</th><th>점수</th><th>날짜</th><th></th></tr></thead><tbody>
+    ${results.map(r=>`<tr>
+      <td><strong>${r.studentName||'-'}</strong></td><td>${r.seriesName||'-'}</td><td>${r.bookNum}권</td>
+      <td><span class="badge ${r.score>=8?'badge-green':r.score>=5?'badge-yellow':'badge-red'}">${r.score}/10</span></td>
+      <td class="text-dim text-sm">${r.submittedAt?new Date(r.submittedAt.seconds*1000).toLocaleString('ko-KR'):'-'}</td>
+      <td style="display:flex;gap:.3rem">
+        <button class="btn btn-secondary btn-sm" data-result-id="${r.id}" onclick="showResultDetail(this.dataset.resultId)">상세</button>
+        <button class="btn btn-danger btn-sm" data-result-id="${r.id}" onclick="deleteOneResult(this.dataset.resultId)">삭제</button>
+      </td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+
+function showResultDetail(resultId) {
+  const r = resultCache[resultId];
+  if (!r) return;
+  document.getElementById('result-detail-title').textContent = r.studentName+' — '+r.seriesName+' '+r.bookNum+'권 ('+r.score+'/10)';
+  document.getElementById('result-detail-content').innerHTML = (r.details||[]).map((d,i)=>{
+    const opts = d.options || {};
+    const optionsHTML = ['A','B','C','D'].filter(k=>opts[k]).length
+      ? ['A','B','C','D'].filter(k=>opts[k]).map(k=>`
+        <div style="display:flex;gap:.5rem;padding:.3rem .5rem;border-radius:5px;font-size:.82rem;
+          background:${k===d.correctAnswer?'rgba(76,255,176,0.1)':k===d.studentAnswer&&!d.correct?'rgba(255,92,92,0.08)':'transparent'}">
+          <span style="font-family:'Space Mono',monospace;font-weight:700;min-width:18px;
+            color:${k===d.correctAnswer?'var(--success)':k===d.studentAnswer&&!d.correct?'var(--danger)':'var(--text-dim)'}">${k}</span>
+          <span>${opts[k]}</span>
+          ${k===d.correctAnswer?'<span style="margin-left:auto;font-size:.72rem;color:var(--success)">✓ 정답</span>':''}
+          ${k===d.studentAnswer&&!d.correct?'<span style="margin-left:auto;font-size:.72rem;color:var(--danger)">학생 답</span>':''}
+        </div>`).join('')
+      : '<div class="text-dim text-sm">보기 정보 없음</div>';
+    return `<div class="result-detail-item">
+      <div class="q-indicator ${d.correct?'q-correct':'q-wrong'}">${d.correct?'✓':'✗'}</div>
+      <div style="flex:1">
+        <div style="font-weight:500;margin-bottom:.25rem">${i+1}. ${d.question}</div>
+        <div class="text-sm text-dim" style="margin-bottom:${!d.correct?'.5rem':'0'}">
+          학생 답: <strong style="color:${d.correct?'var(--success)':'var(--danger)'}">${d.studentAnswer||'(없음)'}</strong>
+          &nbsp;/&nbsp; 정답: <strong style="color:var(--success)">${d.correctAnswer}</strong>
+        </div>
+        ${!d.correct?`<div style="display:flex;flex-direction:column;gap:.25rem;padding:.5rem;background:var(--bg);border-radius:7px">${optionsHTML}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+  openModal('result-detail-modal');
+}
+
+// ── STUDENT PAGE
+async function initStudentPage(studentId) {
+  const snap = await db.collection('students').doc(studentId).get();
+  if (!snap.exists || snap.data().active === false || snap.data().withdrawn === true) {
+    showPage('forbidden-page'); return;
+  }
+  currentStudentId=studentId;
+  currentStudentData={id:studentId,...snap.data()};
+  document.getElementById('student-name-tag').textContent=currentStudentData.name;
+  showPage('student-page');
+  await loadStudentSeries();
+}
+
+async function loadStudentSeries() {
+  // 단계 선택 화면 로드
+  await loadStudentLevel();
+}
+
+async function loadStudentLevel() {
+  const sSnap = await db.collection('series').get();
+  const seriesList=[]; sSnap.forEach(d=>seriesList.push({id:d.id,...d.data()}));
+  const qSnap = await db.collection('quizzes').get();
+  const quizCounts={};
+  qSnap.forEach(d=>{ const data=d.data(); quizCounts[data.seriesId]=(quizCounts[data.seriesId]||0)+1; });
+
+  // 단계별 시리즈 수, 퀴즈 수 집계
+  const levelSeriesCount={}, levelQuizCount={};
+  seriesList.forEach(s=>{
+    const lv=String(s.level||'4');
+    levelSeriesCount[lv]=(levelSeriesCount[lv]||0)+1;
+    levelQuizCount[lv]=(levelQuizCount[lv]||0)+(quizCounts[s.id]||0);
+  });
+
+  const grid=document.getElementById('student-level-grid');
+  grid.innerHTML=['1','2','3','4'].map(lv=>{
+    const lvi=LEVELS[lv];
+    const sc=levelSeriesCount[lv]||0;
+    const qc=levelQuizCount[lv]||0;
+    return `<div class="level-card ${lvi.color}" data-level="${lv}">
+      <div class="level-num">${lv}</div>
+      <div class="level-label">${lvi.label}</div>
+      <div class="level-desc">${lvi.desc}</div>
+      <div class="level-count">${sc}개 시리즈 · 퀴즈 ${qc}권</div>
+    </div>`;
+  }).join('');
+
+  grid.onclick=(e)=>{
+    const card=e.target.closest('.level-card');
+    if(!card) return;
+    selectStudentLevel(card.dataset.level);
+  };
+
+  ['level','series','book','quiz','result'].forEach(v=>{
+    const el=document.getElementById('sv-'+v);
+    if(el) el.style.display=v==='level'?'block':'none';
+  });
+}
+
+async function selectStudentLevel(levelId) {
+  currentLevelId=levelId;
+  const lvi=LEVELS[levelId];
+
+  const sSnap = await db.collection('series').get();
+  const seriesList=[]; sSnap.forEach(d=>seriesList.push({id:d.id,...d.data()}));
+  const filtered=seriesList.filter(s=>String(s.level||'4')===String(levelId));
+  filtered.sort((a,b)=>a.name.localeCompare(b.name));
+
+  const qSnap = await db.collection('quizzes').get();
+  const quizCounts={};
+  qSnap.forEach(d=>{ const data=d.data(); quizCounts[data.seriesId]=(quizCounts[data.seriesId]||0)+1; });
+
+  const rSnap = await db.collection('results').where('studentId','==',currentStudentId).get();
+  studentResults={};
+  rSnap.forEach(d=>{ const data=d.data(); studentResults[data.seriesId+'_'+data.bookNum]=data; });
+
+  // breadcrumb 업데이트
+  document.getElementById('bc-level-name').textContent=`${levelId}단계 — ${lvi.label}`;
+  document.getElementById('bc-level-name2').textContent=`${levelId}단계 — ${lvi.label}`;
+  document.getElementById('bc-level-name3').textContent=`${levelId}단계 — ${lvi.label}`;
+  document.getElementById('series-view-title').textContent=`${levelId}단계 — ${lvi.label}`;
+
+  const grid=document.getElementById('student-series-grid');
+  if(!filtered.length){
+    grid.innerHTML='<div class="empty-state"><div class="empty-icon">📚</div>이 단계에 등록된 시리즈가 없습니다</div>';
+  } else {
+    grid.innerHTML=filtered.map(s=>{
+      const qc=quizCounts[s.id]||0;
+      // 완료한 권 수
+      const done=Object.keys(studentResults).filter(k=>k.startsWith(s.id+'_')).length;
+      return `<div class="series-card" data-series-id="${s.id}">
+        <div class="series-icon">${s.icon||'📚'}</div>
+        <div class="series-name">${s.name}</div>
+        <div class="series-count">퀴즈 ${qc}권${done>0?` · ✅${done}권 완료`:''}</div>
+      </div>`;
+    }).join('');
+    grid.onclick=(e)=>{
+      const card=e.target.closest('.series-card');
+      if(!card) return;
+      selectStudentSeries(card.dataset.seriesId);
+    };
+  }
+
+  ['level','series','book','quiz','result'].forEach(v=>{
+    const el=document.getElementById('sv-'+v);
+    if(el) el.style.display=v==='series'?'block':'none';
+  });
+}
+
+async function selectStudentSeries(seriesId) {
+  const snap = await db.collection('series').doc(seriesId).get();
+  currentSeriesId=seriesId;
+  currentSeriesData={id:seriesId,...snap.data()};
+  const qSnap = await db.collection('quizzes').get();
+  const available=new Set();
+  qSnap.forEach(d=>{ if(d.data().seriesId===seriesId) available.add(d.data().bookNum); });
+  const rSnap = await db.collection('results').where('studentId','==',currentStudentId).get();
+  studentResults={};
+  rSnap.forEach(d=>{ const data=d.data(); studentResults[data.seriesId+'_'+data.bookNum]=data; });
+  document.getElementById('bc-series').textContent=currentSeriesData.name;
+  document.getElementById('book-view-title').textContent=currentSeriesData.name;
+  const list=document.getElementById('student-book-list');
+  list.innerHTML=Array.from({length:currentSeriesData.totalBooks},(_,i)=>i+1).map(n=>{
+    const has=available.has(n);
+    const done=studentResults[seriesId+'_'+n];
+    const title = currentSeriesData.bookTitles && currentSeriesData.bookTitles[n] ? currentSeriesData.bookTitles[n] : null;
+    return `<div class="book-item${done?' completed':''}${!has?' disabled':''}"
+      data-booknum="${n}" data-available="${has?'1':'0'}"
+      style="${!has?'opacity:.35;cursor:not-allowed;pointer-events:none':'cursor:pointer'}">
+      <div class="book-num">${n}</div>
+      <div class="text-sm text-dim" style="margin-top:.15rem">${title?`<span style="font-size:.72rem;line-height:1.3;display:block;color:var(--text-dim)">${title}</span>`:'권'}</div>
+      ${done?`<div class="book-done">✅${done.score}/10</div>`:''}
+      ${!has?'<div class="book-done text-dim" style="font-size:.6rem">준비중</div>':''}
+    </div>`;
+  }).join('');
+
+  // onclick으로 단순하게 처리 (addEventListener 중복 누적 방지)
+  list.onclick = (e) => {
+    const item = e.target.closest('.book-item');
+    if (!item || item.dataset.available !== '1') return;
+    startQuiz(currentSeriesId, parseInt(item.dataset.booknum));
+  };
+
+  // book 뷰 표시
+  ['series','book','quiz','result'].forEach(v=>{
+    document.getElementById('sv-'+v).style.display = v==='book' ? 'block' : 'none';
+  });
+}
+
+async function startQuiz(seriesId, bookNum) {
+  const snap = await db.collection('quizzes').doc(seriesId+'_'+bookNum).get();
+  if (!snap.exists) { toast('퀴즈를 찾을 수 없습니다','error'); return; }
+  const data = snap.data();
+  const allQs = data.questions || [];
+
+  // 랜덤 10문제 추출 (10개 미만이면 전체)
+  const QUIZ_COUNT = 10;
+  let selectedQs;
+  if (allQs.length <= QUIZ_COUNT) {
+    selectedQs = [...allQs];
+  } else {
+    // Fisher-Yates shuffle → 앞 10개
+    const shuffled = [...allQs];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    selectedQs = shuffled.slice(0, QUIZ_COUNT);
+  }
+
+  currentQuizData = { ...data, questions: selectedQs, totalInBank: allQs.length };
+  currentBookNum = bookNum;
+  studentAnswers = {}; quizRevealed = false; currentQIdx = 0;
+
+  document.getElementById('bc-quiz-series').textContent = currentSeriesData.name;
+  document.getElementById('bc-quiz-book').textContent = bookNum + '권';
+  showSV('quiz');
+  renderQuestion(0);
+}
+
+function renderQuestion(idx) {
+  currentQIdx=idx;
+  const qs=currentQuizData.questions, q=qs[idx], total=qs.length;
+  const bankInfo = currentQuizData.totalInBank > total
+    ? `<span style="font-size:.75rem;color:var(--text-dim);margin-left:.5rem">(문제은행 ${currentQuizData.totalInBank}개 중 랜덤 ${total}개)</span>` : '';
+  document.getElementById('quiz-progress-text').textContent=(idx+1)+' / '+total;
+  document.getElementById('quiz-progress-fill').style.width=((idx+1)/total*100)+'%';
+  const sel=studentAnswers[idx];
+  document.getElementById('quiz-question-area').innerHTML=`
+    <div class="question-card">
+      <div class="question-num">문제 ${idx+1} ${idx===0?bankInfo:''}</div>
+      <div class="question-text">${q.question}</div>
+      <div class="options-grid">
+        ${['A','B','C','D'].filter(k=>q.options&&q.options[k]).map(k=>{
+          let cls='option-btn';
+          if(quizRevealed){ if(k===q.answer) cls+=' correct'; else if(sel===k) cls+=' wrong'; }
+          else if(sel===k) cls+=' selected';
+          return `<button class="${cls}" onclick="selectAnswer(${idx},'${k}')" ${quizRevealed?'disabled':''}>
+            <span class="option-key">${k}</span><span>${q.options[k]}</span></button>`;
+        }).join('')}
+      </div>
+    </div>`;
+  const allDone=Object.keys(studentAnswers).length===total;
+  document.getElementById('quiz-nav-btns').innerHTML=`
+    ${idx>0?`<button class="btn btn-secondary" onclick="renderQuestion(${idx-1})">← 이전</button>`:''}
+    ${idx<total-1?`<button class="btn btn-primary" onclick="renderQuestion(${idx+1})" ${!studentAnswers[idx]&&!quizRevealed?'disabled':''}>다음 →</button>`:''}
+    ${idx===total-1&&!quizRevealed?`<button class="btn btn-success" onclick="submitQuiz()" ${!allDone?'disabled':''}>제출하기 ✓</button>`:''}
+    <span class="text-dim text-sm" style="margin-left:auto">${Object.keys(studentAnswers).length}/${total} 답변됨</span>`;
+}
+
+function selectAnswer(idx,key) { if(quizRevealed) return; studentAnswers[idx]=key; renderQuestion(idx); }
+
+async function submitQuiz() {
+  quizRevealed=true;
+  const qs=currentQuizData.questions;
+  let score=0;
+  const details=qs.map((q,i)=>{ const sa=studentAnswers[i]||'', ok=sa===q.answer; if(ok) score++; return{question:q.question,options:q.options||{},studentAnswer:sa,correctAnswer:q.answer,correct:ok}; });
+  await db.collection('results').add({
+    studentId:currentStudentId, studentName:currentStudentData.name,
+    seriesId:currentSeriesId, seriesName:currentSeriesData.name,
+    bookNum:currentBookNum, score, details,
+    submittedAt:firebase.firestore.FieldValue.serverTimestamp()
+  });
+  studentResults[currentSeriesId+'_'+currentBookNum]={score};
+  document.getElementById('result-score-display').textContent=score+' / 10';
+  const msgs=['다시 한번 도전해보세요! 💪','조금 더 열심히 읽어봐요! 📖','잘했어요! 계속 해봐요! 🌟','훌륭해요! 거의 다 맞혔어요! 🎯','완벽해요! 최고예요! 🏆'];
+  document.getElementById('result-msg-display').textContent=msgs[score<=3?0:score<=5?1:score<=7?2:score<=9?3:4];
+  renderResultDetail(details);
+  showSV('result');
+}
+
+function renderResultDetail(details) {
+  document.getElementById('result-detail').innerHTML = details.map((d,i)=>{
+    const opts = d.options || {};
+    const optionsHTML = ['A','B','C','D'].filter(k=>opts[k]).map(k=>`
+      <div style="display:flex;gap:.5rem;padding:.35rem .5rem;border-radius:6px;font-size:.82rem;
+        background:${k===d.correctAnswer?'rgba(76,255,176,0.1)':k===d.studentAnswer&&!d.correct?'rgba(255,92,92,0.08)':'transparent'};
+        border:1px solid ${k===d.correctAnswer?'rgba(76,255,176,0.3)':k===d.studentAnswer&&!d.correct?'rgba(255,92,92,0.25)':'transparent'}">
+        <span style="font-family:'Space Mono',monospace;font-weight:700;min-width:18px;
+          color:${k===d.correctAnswer?'var(--success)':k===d.studentAnswer&&!d.correct?'var(--danger)':'var(--text-dim)'}">${k}</span>
+        <span style="color:${k===d.correctAnswer?'var(--success)':k===d.studentAnswer&&!d.correct?'var(--danger)':'var(--text-dim)'}">${opts[k]}</span>
+        ${k===d.correctAnswer?'<span style="margin-left:auto;font-size:.75rem;color:var(--success)">✓ 정답</span>':''}
+        ${k===d.studentAnswer&&!d.correct?'<span style="margin-left:auto;font-size:.75rem;color:var(--danger)">내 답</span>':''}
+      </div>`).join('');
+
+    return `<div class="result-detail-item${!d.correct?' wrong-item':''}" style="${!d.correct?'cursor:pointer':''}" onclick="${!d.correct?`toggleWrongDetail(this)`:''}">
+      <div class="q-indicator ${d.correct?'q-correct':'q-wrong'}">${d.correct?'✓':'✗'}</div>
+      <div style="flex:1">
+        <div style="font-weight:500;margin-bottom:.25rem;line-height:1.5">${i+1}. ${d.question}</div>
+        <div class="text-sm" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <span style="color:var(--text-dim)">내 답: <strong style="color:${d.correct?'var(--success)':'var(--danger)'}">${d.studentAnswer||'(없음)'}</strong></span>
+          <span style="color:var(--text-dim)">·</span>
+          <span style="color:var(--text-dim)">정답: <strong style="color:var(--success)">${d.correctAnswer}</strong></span>
+          ${!d.correct?'<span style="margin-left:auto;font-size:.75rem;color:var(--text-dim);opacity:.7">탭하여 보기 펼치기 ▼</span>':''}
+        </div>
+        ${!d.correct?`<div class="wrong-detail" style="display:none;flex-direction:column;gap:.3rem;padding:.6rem;background:var(--bg);border-radius:8px;margin-top:.6rem">${optionsHTML}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.querySelectorAll('.wrong-detail').forEach(el => el.style.display='none');
+}
+
+function toggleWrongDetail(item) {
+  const detail = item.querySelector('.wrong-detail');
+  if (!detail) return;
+  const isOpen = detail.style.display === 'flex';
+  detail.style.display = isOpen ? 'none' : 'flex';
+  const spans = item.querySelectorAll('.text-sm span');
+  spans.forEach(s => {
+    if (s.textContent.includes('▼') || s.textContent.includes('▲')) {
+      s.textContent = isOpen ? '탭하여 보기 펼치기 ▼' : '닫기 ▲';
+    }
+  });
+}
+
+function showSV(view) {
+  ['level','series','book','quiz','result'].forEach(v=>{
+    const el=document.getElementById('sv-'+v);
+    if(el) el.style.display=v===view?'block':'none';
+  });
+  if(view==='level') loadStudentLevel();
+  if(view==='series'&&currentLevelId) selectStudentLevel(currentLevelId);
+}
+
+// ── MODAL HELPERS
+function openModal(id) { document.getElementById(id).classList.add('open'); }
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(m=>{
+  m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('open'); });
+});
+
+function switchTab(tabGroupId, targetContentId, clickedEl) {
+  const tabGroup=document.getElementById(tabGroupId);
+  tabGroup.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  clickedEl.classList.add('active');
+  // Find all sibling tab-contents
+  const parent=document.getElementById(targetContentId).parentElement;
+  parent.querySelectorAll('.tab-content').forEach(tc=>{
+    // Only affect direct children that are tab-contents in this section
+    if(tc.parentElement===parent) tc.classList.remove('active');
+  });
+  document.getElementById(targetContentId).classList.add('active');
+}
+
+// ── TOAST
+let toastTimer;
+function toast(msg,type='info') {
+  const el=document.getElementById('toast');
+  el.textContent=msg; el.className='show'+(type!=='info'?' '+type:'');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>el.className='',3000);
+}
+</script>
+</body>
+</html>
