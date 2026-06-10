@@ -183,8 +183,8 @@ body.ready .page.active{display:block;}
 .result-score{font-size:4rem;font-weight:900;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin:1rem 0;}
 .result-msg{font-size:1.1rem;color:var(--text-dim);}
 
-#toast{position:fixed;bottom:2rem;right:2rem;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:.85rem 1.2rem;font-size:.9rem;z-index:999;transform:translateY(80px);opacity:0;transition:all .3s;max-width:300px;}
-#toast.show{transform:translateY(0);opacity:1;}
+#toast{position:fixed;background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:.7rem 1rem;font-size:.88rem;z-index:9999;opacity:0;transition:opacity .25s;max-width:220px;pointer-events:none;transform:none;}
+#toast.show{opacity:1;}
 #toast.success{border-color:var(--success);color:var(--success);}
 #toast.error{border-color:var(--danger);color:var(--danger);}
 
@@ -1820,7 +1820,7 @@ async function loadQuizList() {
     ${quizzes.map(q=>{
       const series = allSeries.find(s=>s.id===q.seriesId);
       const bookTitle = series?.bookTitles?.[q.bookNum] || '';
-      const infoBtn = bookTitle ? ` <button onclick="toast('${bookTitle.replace(/'/g,"\\'")}','info')" style="background:none;border:none;cursor:pointer;font-size:.85rem;padding:0;line-height:1;vertical-align:middle;opacity:.7" title="${bookTitle}">ℹ️</button>` : '';
+      const infoBtn = bookTitle ? ` <button onclick="toast('${bookTitle.replace(/'/g,"\\'")}','info',event)" style="background:none;border:none;cursor:pointer;font-size:.85rem;padding:0;line-height:1;vertical-align:middle;opacity:.7" title="${bookTitle}">ℹ️</button>` : '';
       return `<tr>
         <td>${q.seriesName}</td>
         <td><span style="white-space:nowrap">${q.bookNum}권${infoBtn}</span></td>
@@ -2502,11 +2502,25 @@ function switchTab(tabGroupId, targetContentId, clickedEl) {
 
 // ── TOAST
 let toastTimer;
-function toast(msg,type='info') {
+function toast(msg,type,event) {
+  if(!type) type='info';
   const el=document.getElementById('toast');
-  el.textContent=msg; el.className='show'+(type!=='info'?' '+type:'');
+  el.textContent=msg;
+  el.className='show'+(type!=='info'?' '+type:'');
+  if(event) {
+    const e=event.touches?event.touches[0]:event;
+    const x=e.clientX, y=e.clientY;
+    const pw=220;
+    let left=x-pw/2, top=y-60;
+    if(left<8) left=8;
+    if(left+pw>window.innerWidth-8) left=window.innerWidth-pw-8;
+    if(top<8) top=y+16;
+    el.style.cssText='position:fixed;left:'+left+'px;top:'+top+'px;bottom:auto;right:auto;transform:none;';
+  } else {
+    el.style.cssText='position:fixed;left:50%;bottom:5rem;top:auto;right:auto;transform:translateX(-50%);';
+  }
   clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>el.className='',3000);
+  toastTimer=setTimeout(()=>{el.className='';},2500);
 }
 </script>
 </body>
