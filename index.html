@@ -857,6 +857,14 @@ const ADMIN_PASSWORD = 'bookquiz2024';
 
 // ── STATE
 let allStudents = [], allSeries = [], studentResults = {};
+
+// 결과 문서의 submittedAt(Firestore Timestamp)을 비교 가능한 ms 값으로 변환.
+// 값이 없거나 아직 서버에서 채워지지 않은 경우(드묾) 0으로 처리해 항상 최신 값이 우선되게 함.
+function getSubmittedMillis(resultData) {
+  const t = resultData && resultData.submittedAt;
+  if (t && typeof t.toMillis === 'function') return t.toMillis();
+  return 0;
+}
 let currentStudentId = null, currentStudentData = null;
 let currentSeriesId = null, currentSeriesData = null;
 let currentBookNum = null, currentQuizData = null;
@@ -2269,7 +2277,12 @@ async function selectStudentLevel(levelId) {
 
   const rSnap = await db.collection('results').where('studentId','==',currentStudentId).get();
   studentResults={};
-  rSnap.forEach(d=>{ const data=d.data(); studentResults[data.seriesId+'_'+data.bookNum]=data; });
+  rSnap.forEach(d=>{
+    const data=d.data();
+    const key=data.seriesId+'_'+data.bookNum;
+    const prev=studentResults[key];
+    if(!prev || getSubmittedMillis(data) >= getSubmittedMillis(prev)) studentResults[key]=data;
+  });
 
   // breadcrumb 업데이트
   document.getElementById('bc-level-name').textContent=`${levelId}단계 — ${lvi.label}`;
@@ -2313,7 +2326,12 @@ async function selectStudentSeries(seriesId) {
   qSnap.forEach(d=>{ if(d.data().seriesId===seriesId) available.add(d.data().bookNum); });
   const rSnap = await db.collection('results').where('studentId','==',currentStudentId).get();
   studentResults={};
-  rSnap.forEach(d=>{ const data=d.data(); studentResults[data.seriesId+'_'+data.bookNum]=data; });
+  rSnap.forEach(d=>{
+    const data=d.data();
+    const key=data.seriesId+'_'+data.bookNum;
+    const prev=studentResults[key];
+    if(!prev || getSubmittedMillis(data) >= getSubmittedMillis(prev)) studentResults[key]=data;
+  });
   document.getElementById('bc-series').textContent=currentSeriesData.name;
   document.getElementById('book-view-title').textContent=currentSeriesData.name;
   const list=document.getElementById('student-book-list');
