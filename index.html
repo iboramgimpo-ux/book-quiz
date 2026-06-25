@@ -5,7 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>독서퀴즈 📚</title>
 
-<!-- Firebase Compat SDK (모듈 방식 대신 전통 방식 사용 - 로딩 문제 해결) -->
+<!-- Firebase DNS 사전 연결 (iOS Safari 로딩 속도 개선) -->
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link rel="dns-prefetch" href="https://www.gstatic.com">
+<link rel="dns-prefetch" href="https://firestore.googleapis.com">
+<!-- Firebase Compat SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script>
@@ -18,6 +23,9 @@
     appId: "1:352729909403:web:8cbc1b592995bc2fe91e3e"
   });
   const db = firebase.firestore();
+  // iOS Safari: 캐시 설정으로 재방문 시 속도 개선
+  db.settings({ cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED });
+  db.enablePersistence({ synchronizeTabs: false }).catch(() => {});
 </script>
 
 <!-- mammoth(docx파서)와 폰트는 관리자 전용 — 학생 접속 시 스킵해서 로딩 속도 개선 -->
@@ -231,41 +239,43 @@ body.ready .page.active{display:block;}
 ::-webkit-scrollbar-track{background:transparent;}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
 
-/* ── 항상 모바일 레이아웃 */
-.admin-layout{grid-template-columns:1fr;}
-.admin-sidebar{display:none;}
-.form-row{grid-template-columns:1fr;}
-.quiz-container{padding:1rem;}
-.admin-main{padding:1rem;padding-bottom:76px;}
-.app-header{padding:0 1rem;}
-.app-header .app-logo{font-size:1rem;}
-.mobile-tabbar{
-  display:flex !important;
-  position:fixed !important;
-  bottom:0 !important;
-  left:0 !important;
-  right:0 !important;
-  width:100vw !important;
-  background:var(--surface);
-  border-top:1px solid var(--border);
-  z-index:9999 !important;
-  height:60px !important;
-  box-sizing:border-box !important;
-}
-.mobile-tab{
-  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:2px;cursor:pointer;color:var(--text-dim);
-  font-size:11px;
-  padding:.4rem .2rem;border:none;background:none;
-  -webkit-tap-highlight-color:transparent;
-}
-.mobile-tab .tab-icon{font-size:22px;line-height:1;}
-.mobile-tab.active{color:var(--accent);}
-.card{overflow-x:auto;}
-.data-table{min-width:500px;}
-.section-title{font-size:1.1rem;}
-.stats-row{grid-template-columns:1fr 1fr;}
-@media(max-width:700px){
+/* ── 데스크탑 기본값: 사이드바 레이아웃 */
+.mobile-tabbar{display:none;}
+
+@media(max-width:768px){
+  .admin-layout{grid-template-columns:1fr;}
+  .admin-sidebar{display:none;}
+  .form-row{grid-template-columns:1fr;}
+  .quiz-container{padding:1rem;}
+  .admin-main{padding:1rem;padding-bottom:76px;}
+  .app-header{padding:0 1rem;}
+  .app-header .app-logo{font-size:1rem;}
+  .mobile-tabbar{
+    display:flex !important;
+    position:fixed !important;
+    bottom:0 !important;
+    left:0 !important;
+    right:0 !important;
+    width:100vw !important;
+    background:var(--surface);
+    border-top:1px solid var(--border);
+    z-index:9999 !important;
+    height:60px !important;
+    box-sizing:border-box !important;
+  }
+  .mobile-tab{
+    flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:2px;cursor:pointer;color:var(--text-dim);
+    font-size:11px;
+    padding:.4rem .2rem;border:none;background:none;
+    -webkit-tap-highlight-color:transparent;
+  }
+  .mobile-tab .tab-icon{font-size:22px;line-height:1;}
+  .mobile-tab.active{color:var(--accent);}
+  .card{overflow-x:auto;}
+  .data-table{min-width:500px;}
+  .section-title{font-size:1.1rem;}
+  .stats-row{grid-template-columns:1fr 1fr;}
   /* 모달 모바일 최적화 */
   .modal{margin:.5rem;max-height:85vh;}
   /* 버튼 더 크게 */
@@ -954,10 +964,23 @@ async function loadDashboard() {
   const recent = results.slice(0,8);
   if (!recent.length) { el.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div>아직 결과가 없습니다</div>'; return; }
   el.innerHTML = `<table class="data-table"><thead><tr><th>학생</th><th>시리즈</th><th>권</th><th>점수</th><th>날짜</th></tr></thead><tbody>
-    ${recent.map(r=>`<tr><td>${r.studentName||'-'}</td><td>${r.seriesName||'-'}</td><td>${r.bookNum}권</td>
+    ${recent.map(r=>`<tr><td>${r.studentName||'-'}</td><td>${r.seriesName||'-'}</td>
+    <td><span style="white-space:nowrap">${r.bookNum}권${makeInfoBtn(r.seriesId, r.bookNum)}</span></td>
     <td><span class="badge ${r.score>=8?'badge-green':r.score>=5?'badge-yellow':'badge-red'}">${r.score}/10</span></td>
     <td class="text-dim text-sm">${r.submittedAt?new Date(r.submittedAt.seconds*1000).toLocaleDateString('ko-KR'):'-'}</td></tr>`).join('')}
   </tbody></table>`;
+}
+
+// ── 책 제목 툴팁 헬퍼
+function getBookTitle(seriesId, bookNum) {
+  const series = allSeries.find(s => s.id === seriesId);
+  return series?.bookTitles?.[bookNum] || '';
+}
+function makeInfoBtn(seriesId, bookNum) {
+  const title = getBookTitle(seriesId, bookNum);
+  if (!title) return '';
+  const safe = title.replace(/'/g, "\\'");
+  return ` <button onclick="toast('${safe}','info',event)" style="background:none;border:none;cursor:pointer;font-size:.85rem;padding:0;line-height:1;vertical-align:middle;opacity:.7" title="${title}">ℹ️</button>`;
 }
 
 // ── STUDENTS
@@ -1827,8 +1850,7 @@ async function loadQuizList() {
   el.innerHTML= dlAllBtn + `<table class="data-table"><thead><tr><th>시리즈</th><th>권</th><th>문제 수</th><th>수정</th><th>받기</th><th>삭제</th></tr></thead><tbody>
     ${quizzes.map(q=>{
       const series = allSeries.find(s=>s.id===q.seriesId);
-      const bookTitle = series?.bookTitles?.[q.bookNum] || '';
-      const infoBtn = bookTitle ? ` <button onclick="toast('${bookTitle.replace(/'/g,"\\'")}','info',event)" style="background:none;border:none;cursor:pointer;font-size:.85rem;padding:0;line-height:1;vertical-align:middle;opacity:.7" title="${bookTitle}">ℹ️</button>` : '';
+      const infoBtn = makeInfoBtn(q.seriesId, q.bookNum);
       return `<tr>
         <td>${q.seriesName}</td>
         <td><span style="white-space:nowrap">${q.bookNum}권${infoBtn}</span></td>
@@ -2161,7 +2183,8 @@ async function loadResults() {
   if (!results.length) { el.innerHTML='<div class="empty-state"><div class="empty-icon">📋</div>결과가 없습니다</div>'; return; }
   el.innerHTML=`<table class="data-table"><thead><tr><th>학생</th><th>시리즈</th><th>권</th><th>점수</th><th>날짜</th><th></th></tr></thead><tbody>
     ${results.map(r=>`<tr>
-      <td><strong>${r.studentName||'-'}</strong></td><td>${r.seriesName||'-'}</td><td>${r.bookNum}권</td>
+      <td><strong>${r.studentName||'-'}</strong></td><td>${r.seriesName||'-'}</td>
+      <td><span style="white-space:nowrap">${r.bookNum}권${makeInfoBtn(r.seriesId, r.bookNum)}</span></td>
       <td><span class="badge ${r.score>=8?'badge-green':r.score>=5?'badge-yellow':'badge-red'}">${r.score}/10</span></td>
       <td class="text-dim text-sm">${r.submittedAt?new Date(r.submittedAt.seconds*1000).toLocaleString('ko-KR'):'-'}</td>
       <td style="display:flex;gap:.3rem">
@@ -2204,7 +2227,45 @@ function showResultDetail(resultId) {
   openModal('result-detail-modal');
 }
 
-// ── STUDENT PAGE
+// ── STUDENT PAGE — 캐시 (Firestore 중복 호출 방지)
+let _cachedSeriesList = null;
+let _cachedQuizCounts = null;
+let _cachedStudentResults = null;
+
+async function _getSeriesAndQuizCounts() {
+  if (_cachedSeriesList && _cachedQuizCounts) {
+    return { seriesList: _cachedSeriesList, quizCounts: _cachedQuizCounts };
+  }
+  const [sSnap, qSnap] = await Promise.all([
+    db.collection('series').get(),
+    db.collection('quizzes').get()
+  ]);
+  const seriesList = [];
+  sSnap.forEach(d => seriesList.push({ id: d.id, ...d.data() }));
+  const quizCounts = {};
+  qSnap.forEach(d => {
+    const data = d.data();
+    quizCounts[data.seriesId] = (quizCounts[data.seriesId] || 0) + 1;
+  });
+  _cachedSeriesList = seriesList;
+  _cachedQuizCounts = quizCounts;
+  return { seriesList, quizCounts };
+}
+
+async function _getStudentResults() {
+  if (_cachedStudentResults) return _cachedStudentResults;
+  const rSnap = await db.collection('results').where('studentId', '==', currentStudentId).get();
+  const results = {};
+  rSnap.forEach(d => {
+    const data = d.data();
+    const key = data.seriesId + '_' + data.bookNum;
+    const prev = results[key];
+    if (!prev || getSubmittedMillis(data) >= getSubmittedMillis(prev)) results[key] = data;
+  });
+  _cachedStudentResults = results;
+  return results;
+}
+
 async function initStudentPage(studentId) {
   const snap = await db.collection('students').doc(studentId).get();
   if (!snap.exists || snap.data().active === false || snap.data().withdrawn === true) {
@@ -2214,20 +2275,22 @@ async function initStudentPage(studentId) {
   currentStudentData={id:studentId,...snap.data()};
   document.getElementById('student-name-tag').textContent=currentStudentData.name;
   showPage('student-page');
-  await loadStudentSeries();
+  // 진입 시 series, quizzes, results 한번에 병렬 프리패치
+  _cachedSeriesList = null; _cachedQuizCounts = null; _cachedStudentResults = null;
+  const [{ seriesList, quizCounts }, results] = await Promise.all([
+    _getSeriesAndQuizCounts(),
+    _getStudentResults()
+  ]);
+  studentResults = results;
+  await loadStudentLevel();
 }
 
 async function loadStudentSeries() {
-  // 단계 선택 화면 로드
   await loadStudentLevel();
 }
 
 async function loadStudentLevel() {
-  const sSnap = await db.collection('series').get();
-  const seriesList=[]; sSnap.forEach(d=>seriesList.push({id:d.id,...d.data()}));
-  const qSnap = await db.collection('quizzes').get();
-  const quizCounts={};
-  qSnap.forEach(d=>{ const data=d.data(); quizCounts[data.seriesId]=(quizCounts[data.seriesId]||0)+1; });
+  const { seriesList, quizCounts } = await _getSeriesAndQuizCounts();
 
   // 단계별 시리즈 수, 퀴즈 수 집계
   const levelSeriesCount={}, levelQuizCount={};
@@ -2266,23 +2329,11 @@ async function selectStudentLevel(levelId) {
   currentLevelId=levelId;
   const lvi=LEVELS[levelId];
 
-  const sSnap = await db.collection('series').get();
-  const seriesList=[]; sSnap.forEach(d=>seriesList.push({id:d.id,...d.data()}));
+  const { seriesList, quizCounts } = await _getSeriesAndQuizCounts();
   const filtered=seriesList.filter(s=>String(s.level||'4')===String(levelId));
   filtered.sort((a,b)=>a.name.localeCompare(b.name));
 
-  const qSnap = await db.collection('quizzes').get();
-  const quizCounts={};
-  qSnap.forEach(d=>{ const data=d.data(); quizCounts[data.seriesId]=(quizCounts[data.seriesId]||0)+1; });
-
-  const rSnap = await db.collection('results').where('studentId','==',currentStudentId).get();
-  studentResults={};
-  rSnap.forEach(d=>{
-    const data=d.data();
-    const key=data.seriesId+'_'+data.bookNum;
-    const prev=studentResults[key];
-    if(!prev || getSubmittedMillis(data) >= getSubmittedMillis(prev)) studentResults[key]=data;
-  });
+  studentResults = await _getStudentResults();
 
   // breadcrumb 업데이트
   document.getElementById('bc-level-name').textContent=`${levelId}단계 — ${lvi.label}`;
@@ -2318,20 +2369,28 @@ async function selectStudentLevel(levelId) {
 }
 
 async function selectStudentSeries(seriesId) {
-  const snap = await db.collection('series').doc(seriesId).get();
-  currentSeriesId=seriesId;
-  currentSeriesData={id:seriesId,...snap.data()};
-  const qSnap = await db.collection('quizzes').get();
-  const available=new Set();
-  qSnap.forEach(d=>{ if(d.data().seriesId===seriesId) available.add(d.data().bookNum); });
-  const rSnap = await db.collection('results').where('studentId','==',currentStudentId).get();
-  studentResults={};
-  rSnap.forEach(d=>{
-    const data=d.data();
-    const key=data.seriesId+'_'+data.bookNum;
-    const prev=studentResults[key];
-    if(!prev || getSubmittedMillis(data) >= getSubmittedMillis(prev)) studentResults[key]=data;
-  });
+  // 캐시에서 시리즈 정보 찾기 (없으면 개별 조회)
+  let seriesData = _cachedSeriesList && _cachedSeriesList.find(s => s.id === seriesId);
+  if (!seriesData) {
+    const snap = await db.collection('series').doc(seriesId).get();
+    seriesData = { id: seriesId, ...snap.data() };
+  }
+  currentSeriesId = seriesId;
+  currentSeriesData = seriesData;
+
+  // quizzes: 캐시에서 available 권 번호 추출, 없으면 seriesId 필터 쿼리
+  let available = new Set();
+  if (_cachedQuizCounts) {
+    // 캐시가 있을 때 — 전체 목록은 없으므로 seriesId로 필터된 쿼리만 실행
+    const qSnap = await db.collection('quizzes').where('seriesId', '==', seriesId).get();
+    qSnap.forEach(d => available.add(d.data().bookNum));
+  } else {
+    const qSnap = await db.collection('quizzes').where('seriesId', '==', seriesId).get();
+    qSnap.forEach(d => available.add(d.data().bookNum));
+  }
+
+  // results: 캐시 우선 사용, 퀴즈 제출 후엔 캐시 무효화되므로 항상 최신
+  studentResults = await _getStudentResults();
   document.getElementById('bc-series').textContent=currentSeriesData.name;
   document.getElementById('book-view-title').textContent=currentSeriesData.name;
   const list=document.getElementById('student-book-list');
@@ -2436,6 +2495,8 @@ async function submitQuiz() {
     bookNum:currentBookNum, score, details,
     submittedAt:firebase.firestore.FieldValue.serverTimestamp()
   });
+  // 제출 후 results 캐시 무효화 (다음 조회 시 최신 결과 반영)
+  _cachedStudentResults = null;
   studentResults[currentSeriesId+'_'+currentBookNum]={score};
   document.getElementById('result-score-display').textContent=score+' / 10';
   const msgs=['다시 한번 도전해보세요! 💪','조금 더 열심히 읽어봐요! 📖','잘했어요! 계속 해봐요! 🌟','훌륭해요! 거의 다 맞혔어요! 🎯','완벽해요! 최고예요! 🏆'];
