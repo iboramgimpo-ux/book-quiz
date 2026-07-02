@@ -1407,6 +1407,15 @@ function copyStudentLink() {
     .then(() => toast('링크가 복사되었습니다 📋','success'));
 }
 
+// ── 탈퇴 처리 모달
+let withdrawingStudentId = null;
+function openWithdrawModal(id, name) {
+  withdrawingStudentId = id;
+  document.getElementById('withdraw-student-name').textContent = name;
+  document.getElementById('withdraw-date-input').value = new Date().toISOString().slice(0,10);
+  openModal('withdraw-modal');
+}
+
 // ── 학생 정보 모달
 let viewingStudentId = null;
 function showStudentInfo(studentId) {
