@@ -735,6 +735,7 @@ happy - 행복한 - He looks very happy today."></textarea>
         <div style="font-size:1.1rem;font-weight:600">단어퀴즈 완료! 🎉</div>
         <div class="result-score" id="wordresult-score-display"></div>
         <div class="result-msg" id="wordresult-msg-display"></div>
+        <div id="wordresult-detail" style="text-align:left;margin-top:1.5rem;background:var(--bg);border-radius:8px;overflow:hidden"></div>
         <div style="display:flex;gap:.75rem;justify-content:center;margin-top:1.5rem;flex-wrap:wrap">
           <button class="btn btn-primary" onclick="openWordStudy(currentSeriesId,currentBookNum)">단어장 다시 보기</button>
           <button class="btn btn-secondary" onclick="if(currentSeriesId)selectStudentSeries(currentSeriesId)">권호 목록</button>
@@ -983,6 +984,17 @@ happy - 행복한 - He looks very happy today."></textarea>
       <button class="modal-close" onclick="closeModal('wordbook-modal')">✕</button>
     </div>
     <div id="wordbook-modal-sub" class="text-dim text-sm" style="margin-bottom:1rem"></div>
+
+    <div style="background:var(--bg);border-radius:8px;padding:.75rem;margin-bottom:1rem;display:flex;flex-direction:column;gap:.5rem">
+      <div style="font-weight:600;font-size:.85rem">➕ 단어 추가</div>
+      <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+        <input type="text" class="form-input" id="wb-add-en" placeholder="영어단어" style="flex:1;min-width:100px">
+        <input type="text" class="form-input" id="wb-add-ko" placeholder="한글뜻" style="flex:1;min-width:100px">
+      </div>
+      <input type="text" class="form-input" id="wb-add-ex" placeholder="예문 (선택)" onkeydown="if(event.key==='Enter')addWordToWordbook()">
+      <button class="btn btn-success btn-sm" style="align-self:flex-end" onclick="addWordToWordbook()">추가</button>
+    </div>
+
     <div class="parsed-preview" id="wordbook-modal-list" style="max-height:50vh"></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('wordbook-modal')">닫기</button>
@@ -2285,6 +2297,27 @@ function renderWordbookModalList() {
       <button class="btn btn-danger btn-sm" style="padding:.2rem .5rem;font-size:.72rem;flex-shrink:0" onclick="deleteWordFromWordbook(${i})">삭제</button>
     </div>`).join('');
 }
+async function addWordToWordbook() {
+  const en = document.getElementById('wb-add-en').value.trim();
+  const ko = document.getElementById('wb-add-ko').value.trim();
+  const ex = document.getElementById('wb-add-ex').value.trim();
+  if (!en) { toast('영어단어를 입력하세요','error'); return; }
+  if (!ko) { toast('한글뜻을 입력하세요','error'); return; }
+
+  const newWord = { id:'w'+Date.now()+'_'+previewWordbook.words.length, en, ko, ex };
+  previewWordbook.words.push(newWord);
+  await db.collection('wordbooks').doc(previewWordbook.id).set(previewWordbook);
+  wordbookListCache[previewWordbook.id] = previewWordbook;
+
+  document.getElementById('wb-add-en').value = '';
+  document.getElementById('wb-add-ko').value = '';
+  document.getElementById('wb-add-ex').value = '';
+  document.getElementById('wordbook-modal-sub').textContent = `${previewWordbook.seriesName} ${previewWordbook.bookNum}권 · 총 ${previewWordbook.words.length}개 단어`;
+  renderWordbookModalList();
+  await loadWordbookList();
+  toast('단어가 추가되었습니다 ✓','success');
+}
+
 async function deleteWordFromWordbook(idx) {
   if (!confirm('이 단어를 삭제하시겠습니까?')) return;
   previewWordbook.words.splice(idx,1);
@@ -3194,7 +3227,20 @@ async function submitWordQuiz() {
   wordQuizRevealed=true;
   let score=0;
   const total=wordQuizQuestions.length;
-  wordQuizQuestions.forEach((q,i)=>{ if (wordQuizAnswers[i]===q.answer) score++; });
+  const letters=['A','B','C','D'];
+  const details = wordQuizQuestions.map((q,i) => {
+    const opts={};
+    q.options.forEach((opt,idx)=>{ opts[letters[idx]]=opt; });
+    const studentAnsText = wordQuizAnswers[i]||'';
+    const correct = studentAnsText === q.answer;
+    if (correct) score++;
+    return {
+      question: q.prompt, options: opts,
+      studentAnswer: letters[q.options.indexOf(studentAnsText)] || '',
+      correctAnswer: letters[q.options.indexOf(q.answer)],
+      correct
+    };
+  });
 
   await db.collection('wordQuizResults').doc(currentStudentId+'_'+currentWordbook.id).set({
     studentId: currentStudentId, studentName: currentStudentData.name,
@@ -3208,7 +3254,40 @@ async function submitWordQuiz() {
   const pct = score/total;
   const msgs=['다시 한번 도전해보세요! 💪','조금 더 열심히 외워봐요! 📖','잘했어요! 계속 해봐요! 🌟','훌륭해요! 거의 다 맞혔어요! 🎯','완벽해요! 최고예요! 🏆'];
   document.getElementById('wordresult-msg-display').textContent = msgs[pct<0.3?0:pct<0.5?1:pct<0.7?2:pct<0.95?3:4];
+  renderWordResultDetail(details);
   showSV('wordresult');
+}
+
+function renderWordResultDetail(details) {
+  document.getElementById('wordresult-detail').innerHTML = details.map((d,i)=>{
+    const opts = d.options || {};
+    const optionsHTML = ['A','B','C','D'].filter(k=>opts[k]).map(k=>`
+      <div style="display:flex;gap:.5rem;padding:.35rem .5rem;border-radius:6px;font-size:.82rem;
+        background:${k===d.correctAnswer?'rgba(76,255,176,0.1)':k===d.studentAnswer&&!d.correct?'rgba(255,92,92,0.08)':'transparent'};
+        border:1px solid ${k===d.correctAnswer?'rgba(76,255,176,0.3)':k===d.studentAnswer&&!d.correct?'rgba(255,92,92,0.25)':'transparent'}">
+        <span style="font-family:'Space Mono',monospace;font-weight:700;min-width:18px;
+          color:${k===d.correctAnswer?'var(--success)':k===d.studentAnswer&&!d.correct?'var(--danger)':'var(--text-dim)'}">${k}</span>
+        <span style="color:${k===d.correctAnswer?'var(--success)':k===d.studentAnswer&&!d.correct?'var(--danger)':'var(--text-dim)'}">${opts[k]}</span>
+        ${k===d.correctAnswer?'<span style="margin-left:auto;font-size:.75rem;color:var(--success)">✓ 정답</span>':''}
+        ${k===d.studentAnswer&&!d.correct?'<span style="margin-left:auto;font-size:.75rem;color:var(--danger)">내 답</span>':''}
+      </div>`).join('');
+
+    return `<div class="result-detail-item${!d.correct?' wrong-item':''}" style="${!d.correct?'cursor:pointer':''}" onclick="${!d.correct?`toggleWrongDetail(this)`:''}">
+      <div class="q-indicator ${d.correct?'q-correct':'q-wrong'}">${d.correct?'✓':'✗'}</div>
+      <div style="flex:1">
+        <div style="font-weight:500;margin-bottom:.25rem;line-height:1.5">${i+1}. ${d.question}</div>
+        <div class="text-sm" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <span style="color:var(--text-dim)">내 답: <strong style="color:${d.correct?'var(--success)':'var(--danger)'}">${d.studentAnswer?opts[d.studentAnswer]:'(없음)'}</strong></span>
+          <span style="color:var(--text-dim)">·</span>
+          <span style="color:var(--text-dim)">정답: <strong style="color:var(--success)">${opts[d.correctAnswer]}</strong></span>
+          ${!d.correct?'<span style="margin-left:auto;font-size:.75rem;color:var(--text-dim);opacity:.7">탭하여 보기 펼치기 ▼</span>':''}
+        </div>
+        ${!d.correct?`<div class="wrong-detail" style="display:none;flex-direction:column;gap:.3rem;padding:.6rem;background:var(--bg);border-radius:8px;margin-top:.6rem">${optionsHTML}</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  document.querySelectorAll('#wordresult-detail .wrong-detail').forEach(el => el.style.display='none');
 }
 
 function showSV(view) {
