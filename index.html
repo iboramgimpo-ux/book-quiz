@@ -177,7 +177,9 @@ body.ready .page.active{display:block;}
 .word-btn.done{border-color:rgba(76,255,176,.4);color:var(--success);background:rgba(76,255,176,.15);}
 .word-btn.disabled,.word-btn:disabled{opacity:.35;cursor:not-allowed;}
 
-.word-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem 1.5rem;margin-bottom:1rem;text-align:center;min-height:220px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:.9rem;animation:fadeIn .25s ease;}
+.word-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem 1.5rem;margin-bottom:1rem;text-align:center;min-height:220px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:.9rem;animation:fadeIn .25s ease;position:relative;}
+.word-speak-btn{position:absolute;top:12px;right:12px;width:34px;height:34px;border-radius:50%;border:1px solid var(--border);background:var(--surface2);color:var(--accent);font-size:1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.word-speak-btn:hover{border-color:var(--accent);background:rgba(108,143,255,.1);}
 .word-en{font-family:'Space Mono',monospace;font-size:1.9rem;font-weight:700;color:var(--accent);word-break:break-word;}
 .word-ko{font-size:1.3rem;font-weight:600;}
 .word-ex{font-size:.9rem;color:var(--text-dim);font-style:italic;line-height:1.6;max-width:440px;}
@@ -702,7 +704,10 @@ happy - 행복한 - He looks very happy today."></textarea>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
         <span id="word-progress-text" class="text-sm text-dim"></span>
-        <button class="btn btn-secondary btn-sm" id="word-trash-toggle-btn" onclick="toggleWordTrashView()">🗑 휴지통 보기</button>
+        <div style="display:flex;gap:.5rem;flex-wrap:wrap">
+          <button class="btn btn-secondary btn-sm" id="word-autospeak-toggle-btn" onclick="toggleAutoSpeak()"></button>
+          <button class="btn btn-secondary btn-sm" id="word-trash-toggle-btn" onclick="toggleWordTrashView()">🗑 휴지통 보기</button>
+        </div>
       </div>
       <div class="word-card" id="word-card-area"></div>
       <div id="word-nav-btns" style="display:flex;gap:.75rem;margin-top:1rem;align-items:center;flex-wrap:wrap"></div>
@@ -2763,6 +2768,7 @@ async function selectStudentLevel(levelId) {
 }
 
 async function selectStudentSeries(seriesId) {
+  window.speechSynthesis?.cancel();
   // 캐시에서 시리즈 정보 찾기 (없으면 개별 조회)
   let seriesData = _cachedSeriesList && _cachedSeriesList.find(s => s.id === seriesId);
   if (!seriesData) {
@@ -2970,6 +2976,27 @@ let currentWordbook = null;
 let currentWordIdx = 0;
 let currentWordTrashIds = new Set();
 let wordTrashView = false;
+let autoSpeakWords = localStorage.getItem('autoSpeakWords') !== 'off'; // 기본값: 켬
+
+// ── 단어 음성 읽어주기 (Web Speech API, 무료 브라우저 내장 TTS)
+function speakText(text, lang) {
+  if (!('speechSynthesis' in window) || !text) return;
+  window.speechSynthesis.cancel(); // 이전에 읽던 음성 중단 후 새로 재생
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = lang;
+  utter.rate = 0.92;
+  window.speechSynthesis.speak(utter);
+}
+function speakCurrentWord() {
+  const words = getActiveWords();
+  const w = words[currentWordIdx];
+  if (w) speakText(w.en, 'en-US');
+}
+function toggleAutoSpeak() {
+  autoSpeakWords = !autoSpeakWords;
+  localStorage.setItem('autoSpeakWords', autoSpeakWords ? 'on' : 'off');
+  renderWordCard();
+}
 
 async function openWordStudy(seriesId, bookNum) {
   const wb = await getWordbook(seriesId, bookNum);
@@ -2995,10 +3022,12 @@ function getActiveWords() {
 
 function renderWordCard() {
   document.getElementById('word-trash-toggle-btn').textContent = wordTrashView ? '📖 단어장 보기' : '🗑 휴지통 보기';
-  if (wordTrashView) { renderWordTrashList(); return; }
+  document.getElementById('word-autospeak-toggle-btn').textContent = autoSpeakWords ? '🔊 자동읽기 켜짐' : '🔇 자동읽기 꺼짐';
+  if (wordTrashView) { window.speechSynthesis?.cancel(); renderWordTrashList(); return; }
 
   const words = getActiveWords();
   if (!words.length) {
+    window.speechSynthesis?.cancel();
     document.getElementById('word-progress-text').textContent = '';
     document.getElementById('word-card-area').innerHTML =
       `<div class="empty-state"><div class="empty-icon">🗑</div>모든 단어를 휴지통으로 보냈어요!<br>휴지통 보기에서 복원할 수 있어요.</div>`;
@@ -3011,10 +3040,12 @@ function renderWordCard() {
   const w = words[currentWordIdx];
   document.getElementById('word-progress-text').textContent = (currentWordIdx+1)+' / '+words.length;
   document.getElementById('word-card-area').innerHTML = `
+    <button class="word-speak-btn" onclick="speakCurrentWord()" title="다시 듣기">🔊</button>
     <div class="word-en">${w.en}</div>
     <div class="word-ko">${w.ko}</div>
     ${w.ex?`<div class="word-ex">"${w.ex}"</div>`:''}
   `;
+  if (autoSpeakWords) speakCurrentWord(); // 자동 재생 시도 (iOS 사파리 등은 차단될 수 있어 🔊 버튼으로 대체 가능)
   const isLast = currentWordIdx === words.length-1;
   document.getElementById('word-nav-btns').innerHTML = `
     <button class="btn btn-secondary" onclick="prevWord()" ${currentWordIdx===0?'disabled':''}>← 이전</button>
@@ -3181,6 +3212,7 @@ async function submitWordQuiz() {
 }
 
 function showSV(view) {
+  if (view !== 'word') window.speechSynthesis?.cancel();
   ['level','series','book','quiz','result','word','wordquiz','wordresult'].forEach(v=>{
     const el=document.getElementById('sv-'+v);
     if(el) el.style.display=v===view?'block':'none';
