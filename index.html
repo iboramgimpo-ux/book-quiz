@@ -37,6 +37,10 @@
       const s = document.createElement('script');
       s.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';
       document.head.appendChild(s);
+      // xlsx(SheetJS) — 단어장 엑셀 업로드용, 관리자만 필요
+      const sx = document.createElement('script');
+      sx.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+      document.head.appendChild(sx);
       // Google Fonts — 관리자만 로드
       const l = document.createElement('link');
       l.rel = 'stylesheet';
@@ -160,13 +164,23 @@ body.ready .page.active{display:block;}
 .level-4{background:linear-gradient(135deg,#3a1a2a,#5a1e3a);border-color:#ff4a9f;}
 .level-4 .level-num{color:#ff4a9f;}
 
-.book-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:.75rem;}
-.book-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem;cursor:pointer;text-align:center;transition:all .2s;position:relative;}
+.book-list{display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));gap:.75rem;}
+.book-item{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem .75rem .9rem;cursor:pointer;text-align:center;transition:all .2s;position:relative;}
 .book-item:hover{border-color:var(--accent);transform:translateY(-2px);}
 .book-num{font-size:1.4rem;font-weight:900;color:var(--accent);}
 .book-done{position:absolute;top:5px;right:5px;font-size:.65rem;}
 .book-item.completed{border-color:rgba(76,255,176,.3);}
 .book-item.completed .book-num{color:var(--success);}
+
+.word-btn{position:absolute;top:4px;left:4px;font-size:.62rem;padding:.3rem .5rem;min-height:26px;border-radius:100px;border:1px solid var(--border);background:var(--surface2);color:var(--text-dim);cursor:pointer;z-index:2;line-height:1.2;font-family:'Noto Sans KR',sans-serif;}
+.word-btn.available{border-color:var(--accent);color:var(--accent);background:rgba(108,143,255,.1);}
+.word-btn.done{border-color:rgba(76,255,176,.4);color:var(--success);background:rgba(76,255,176,.15);}
+.word-btn.disabled,.word-btn:disabled{opacity:.35;cursor:not-allowed;}
+
+.word-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:2.5rem 1.5rem;margin-bottom:1rem;text-align:center;min-height:220px;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:.9rem;animation:fadeIn .25s ease;}
+.word-en{font-family:'Space Mono',monospace;font-size:1.9rem;font-weight:700;color:var(--accent);word-break:break-word;}
+.word-ko{font-size:1.3rem;font-weight:600;}
+.word-ex{font-size:.9rem;color:var(--text-dim);font-style:italic;line-height:1.6;max-width:440px;}
 
 .quiz-progress{display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;}
 .progress-bar{flex:1;height:6px;background:var(--border);border-radius:100px;overflow:hidden;}
@@ -266,11 +280,12 @@ body.ready .page.active{display:block;}
   .mobile-tab{
     flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:2px;cursor:pointer;color:var(--text-dim);
-    font-size:11px;
-    padding:.4rem .2rem;border:none;background:none;
+    font-size:10.5px;
+    padding:.4rem .1rem;border:none;background:none;
     -webkit-tap-highlight-color:transparent;
+    white-space:nowrap;
   }
-  .mobile-tab .tab-icon{font-size:22px;line-height:1;}
+  .mobile-tab .tab-icon{font-size:20px;line-height:1;}
   .mobile-tab.active{color:var(--accent);}
   .card{overflow-x:auto;}
   .data-table{min-width:500px;}
@@ -339,6 +354,7 @@ window.addEventListener('load', repositionTabbar);
         <div class="nav-item" id="nav-students" onclick="showSection('students')"><span>👤</span> 학생 관리</div>
         <div class="nav-item" id="nav-timetable" onclick="showSection('timetable')"><span>🗓</span> 시간표</div>
         <div class="nav-item" id="nav-books" onclick="showSection('books')"><span>📖</span> 책/퀴즈 관리</div>
+        <div class="nav-item" id="nav-words" onclick="showSection('words')"><span>📗</span> 단어장 관리</div>
         <div class="nav-item" id="nav-results" onclick="showSection('results')"><span>📋</span> 결과 조회</div>
       </nav>
     </aside>
@@ -489,6 +505,83 @@ A. Library  B. Park  C. Museum  D. School
         </div>
       </section>
 
+      <section id="section-words" class="admin-section">
+        <div class="section-title">단어장 관리</div>
+        <div class="tabs" id="words-tab-btns">
+          <div class="tab active" onclick="switchTab('words-tab-btns','word-add-tab',this)">단어장 추가</div>
+          <div class="tab" onclick="switchTab('words-tab-btns','word-list-tab',this)">단어장 목록</div>
+        </div>
+
+        <div id="word-add-tab" class="tab-content active">
+          <div class="card">
+            <div class="card-header"><strong>단어장 추가</strong></div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">책 시리즈 선택</label>
+                <select class="form-select" id="word-series-select" onchange="loadBooksForWordSelect()">
+                  <option value="">-- 시리즈 선택 --</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">권호</label>
+                <select class="form-select" id="word-book-select">
+                  <option value="">-- 권호 선택 --</option>
+                </select>
+              </div>
+            </div>
+            <hr class="separator">
+            <div class="tabs" id="wi-tab-btns">
+              <div class="tab active" onclick="switchTab('wi-tab-btns','word-upload-tab',this)">📂 파일 업로드</div>
+              <div class="tab" onclick="switchTab('wi-tab-btns','word-paste-tab',this)">📋 텍스트 붙여넣기</div>
+            </div>
+            <div id="word-upload-tab" class="tab-content active">
+              <div class="upload-zone" onclick="document.getElementById('word-file-input').click()"
+                ondragover="event.preventDefault();this.classList.add('dragover')"
+                ondragleave="this.classList.remove('dragover')"
+                ondrop="handleWordFileDrop(event)">
+                <div class="upload-icon">📄</div>
+                <div style="font-weight:600;margin-bottom:.25rem">.docx 또는 엑셀 파일을 드래그하거나 클릭하세요</div>
+                <div style="font-size:.85rem;color:var(--text-dim)">Word(.docx) / Excel(.xlsx, .csv) 지원 — 영어단어 / 한글뜻 / 예문 순서</div>
+              </div>
+              <input type="file" id="word-file-input" accept=".docx,.xlsx,.xls,.csv" style="display:none" onchange="handleWordFileSelect(event)">
+            </div>
+            <div id="word-paste-tab" class="tab-content">
+              <div class="form-group">
+                <label class="form-label">단어 텍스트 붙여넣기</label>
+                <textarea class="form-textarea" id="word-paste-text" placeholder="한 줄에 한 단어씩, 영어단어 - 한글뜻 - 예문 형식으로 입력하세요. (엑셀에서 복사한 탭 구분 텍스트도 지원)
+
+예시:
+apple - 사과 - I ate an apple this morning.
+run - 달리다 - She likes to run every day.
+happy - 행복한 - He looks very happy today."></textarea>
+              </div>
+              <button class="btn btn-secondary" onclick="parseWordPastedText()">텍스트 파싱</button>
+            </div>
+            <div id="word-parsed-result" style="display:none">
+              <hr class="separator">
+              <div style="font-weight:600;margin-bottom:.5rem">파싱된 단어 미리보기 <span id="word-parsed-count" class="badge badge-blue"></span></div>
+              <div class="parsed-preview" id="word-parsed-preview"></div>
+              <div class="mt-1" style="display:flex;gap:.5rem">
+                <button class="btn btn-success" onclick="saveWordbook()">✓ 단어장 저장</button>
+                <button class="btn btn-secondary" onclick="clearParsedWords()">취소</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="word-list-tab" class="tab-content">
+          <div class="card">
+            <div class="card-header">
+              <strong>등록된 단어장</strong>
+              <select class="form-select" id="word-filter-series" style="width:200px" onchange="loadWordbookList()">
+                <option value="">전체 시리즈</option>
+              </select>
+            </div>
+            <div id="word-list-wrap"><div class="empty-state"><div class="empty-icon">📗</div>등록된 단어장이 없습니다</div></div>
+          </div>
+        </div>
+      </section>
+
       <section id="section-results" class="admin-section">
         <div class="section-title">결과 조회</div>
         <div class="card">
@@ -529,6 +622,9 @@ A. Library  B. Park  C. Museum  D. School
     </button>
     <button class="mobile-tab" id="mob-books" onclick="showSection('books')">
       <span class="tab-icon">📖</span><span>퀴즈</span>
+    </button>
+    <button class="mobile-tab" id="mob-words" onclick="showSection('words')">
+      <span class="tab-icon">📗</span><span>단어</span>
     </button>
     <button class="mobile-tab" id="mob-results" onclick="showSection('results')">
       <span class="tab-icon">📋</span><span>결과</span>
@@ -590,6 +686,53 @@ A. Library  B. Park  C. Museum  D. School
         <div style="display:flex;gap:.75rem;justify-content:center;margin-top:1.5rem">
           <button class="btn btn-primary" onclick="if(currentSeriesId)selectStudentSeries(currentSeriesId)">다른 권 풀기</button>
           <button class="btn btn-secondary" onclick="showSV('series')">시리즈 목록</button>
+          <button class="btn btn-secondary" onclick="showSV('level')">단계 홈</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="sv-word" style="display:none">
+      <div class="breadcrumb">
+        <span onclick="showSV('level')">🏠 단계</span>
+        <span class="sep">›</span>
+        <span id="bc-level-name4"></span>
+        <span class="sep">›</span>
+        <span onclick="if(currentSeriesId)selectStudentSeries(currentSeriesId)" style="cursor:pointer" id="bc-word-series"></span>
+        <span class="sep">›</span><span id="bc-word-book"></span>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.75rem;gap:.5rem;flex-wrap:wrap">
+        <span id="word-progress-text" class="text-sm text-dim"></span>
+        <button class="btn btn-secondary btn-sm" id="word-trash-toggle-btn" onclick="toggleWordTrashView()">🗑 휴지통 보기</button>
+      </div>
+      <div class="word-card" id="word-card-area"></div>
+      <div id="word-nav-btns" style="display:flex;gap:.75rem;margin-top:1rem;align-items:center;flex-wrap:wrap"></div>
+    </div>
+
+    <div id="sv-wordquiz" style="display:none">
+      <div class="breadcrumb">
+        <span onclick="showSV('level')">🏠 단계</span>
+        <span class="sep">›</span>
+        <span id="bc-word-series2"></span>
+        <span class="sep">›</span>
+        <span id="bc-word-book2"></span>
+        <span class="sep">›</span><span>단어퀴즈</span>
+      </div>
+      <div class="quiz-progress">
+        <span id="wordquiz-progress-text" class="text-sm text-dim"></span>
+        <div class="progress-bar"><div class="progress-fill" id="wordquiz-progress-fill"></div></div>
+      </div>
+      <div id="wordquiz-question-area"></div>
+      <div id="wordquiz-nav-btns" style="display:flex;gap:.75rem;margin-top:1rem;flex-wrap:wrap;align-items:center"></div>
+    </div>
+
+    <div id="sv-wordresult" style="display:none">
+      <div class="result-card">
+        <div style="font-size:1.1rem;font-weight:600">단어퀴즈 완료! 🎉</div>
+        <div class="result-score" id="wordresult-score-display"></div>
+        <div class="result-msg" id="wordresult-msg-display"></div>
+        <div style="display:flex;gap:.75rem;justify-content:center;margin-top:1.5rem;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="openWordStudy(currentSeriesId,currentBookNum)">단어장 다시 보기</button>
+          <button class="btn btn-secondary" onclick="if(currentSeriesId)selectStudentSeries(currentSeriesId)">권호 목록</button>
           <button class="btn btn-secondary" onclick="showSV('level')">단계 홈</button>
         </div>
       </div>
@@ -828,6 +971,20 @@ A. Library  B. Park  C. Museum  D. School
   </div>
 </div>
 
+<div class="modal-overlay" id="wordbook-modal">
+  <div class="modal" style="max-width:640px">
+    <div class="modal-title">
+      <span>단어장 보기 / 수정</span>
+      <button class="modal-close" onclick="closeModal('wordbook-modal')">✕</button>
+    </div>
+    <div id="wordbook-modal-sub" class="text-dim text-sm" style="margin-bottom:1rem"></div>
+    <div class="parsed-preview" id="wordbook-modal-list" style="max-height:50vh"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('wordbook-modal')">닫기</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="edit-titles-modal">
   <div class="modal" style="max-width:580px">
     <div class="modal-title">시리즈 편집 — <span id="edit-titles-series-name"></span> <button class="modal-close" onclick="closeModal('edit-titles-modal')">✕</button></div>
@@ -947,6 +1104,7 @@ function showSection(name) {
   const mobTab = document.getElementById('mob-' + name);
   if (mobTab) mobTab.classList.add('active');
   if (name === 'timetable') renderTimetable();
+  if (name === 'words') loadWordbookList();
 }
 
 // ── DASHBOARD
@@ -1668,11 +1826,25 @@ function populateSeriesSelects() {
   const all = '<option value="">전체 시리즈</option>' + sorted.map(s=>`<option value="${s.id}">${s.name}</option>`).join('');
   document.getElementById('quiz-filter-series').innerHTML = all;
   document.getElementById('result-filter-series').innerHTML = all;
+  document.getElementById('word-series-select').innerHTML = opts;
+  document.getElementById('word-filter-series').innerHTML = all;
 }
 
 async function loadBooksForSelect() {
   const seriesId = document.getElementById('quiz-series-select').value;
   const sel = document.getElementById('quiz-book-select');
+  if (!seriesId) { sel.innerHTML='<option value="">-- 권호 선택 --</option>'; return; }
+  const series = allSeries.find(s=>s.id===seriesId);
+  sel.innerHTML = '<option value="">-- 권호 선택 --</option>' +
+    Array.from({length:series.totalBooks},(_,i)=>i+1).map(n=>{
+      const title = series.bookTitles && series.bookTitles[n] ? ` — ${series.bookTitles[n]}` : '';
+      return `<option value="${n}">${n}권${title}</option>`;
+    }).join('');
+}
+
+function loadBooksForWordSelect() {
+  const seriesId = document.getElementById('word-series-select').value;
+  const sel = document.getElementById('word-book-select');
   if (!seriesId) { sel.innerHTML='<option value="">-- 권호 선택 --</option>'; return; }
   const series = allSeries.find(s=>s.id===seriesId);
   sel.innerHTML = '<option value="">-- 권호 선택 --</option>' +
@@ -1934,6 +2106,189 @@ function downloadQuiz(quizId) {
   const { title, body } = quizToDocContent(quizData);
   downloadAsDoc(title, body);
   toast(`"${title}" 다운로드 완료 ✓`, 'success');
+}
+
+// ══════════════════════════════════════════
+// ── 단어장 관리 (WORDBOOKS)
+// ══════════════════════════════════════════
+let parsedWords = [];
+
+async function handleWordFileSelect(e) {
+  const file = e.target.files[0]; if(!file) return;
+  await parseWordFile(file); e.target.value='';
+}
+async function handleWordFileDrop(e) {
+  e.preventDefault(); e.currentTarget.classList.remove('dragover');
+  const file = e.dataTransfer.files[0]; if(file) await parseWordFile(file);
+}
+async function parseWordFile(file) {
+  try {
+    const name = file.name.toLowerCase();
+    if (name.endsWith('.docx')) {
+      const buf = await file.arrayBuffer();
+      const result = await mammoth.extractRawText({arrayBuffer:buf});
+      parseWordText(result.value);
+    } else if (name.endsWith('.xlsx') || name.endsWith('.xls') || name.endsWith('.csv')) {
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, {type:'array'});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, {header:1});
+      const lines = rows.map(r => (r||[]).map(c=>String(c ?? '').trim()).join('\t')).join('\n');
+      parseWordText(lines);
+    } else {
+      toast('지원하지 않는 파일 형식입니다 (.docx, .xlsx, .csv)','error');
+    }
+  } catch(e) { toast('파일 파싱 오류: '+e.message,'error'); }
+}
+function parseWordPastedText() {
+  const text = document.getElementById('word-paste-text').value;
+  if (!text.trim()) { toast('텍스트를 붙여넣으세요','error'); return; }
+  parseWordText(text);
+}
+
+// 한 줄 = 영어단어 / 한글뜻 / 예문. 탭(엑셀 붙여넣기), " - ", 쉼표 구분 모두 지원
+function parseWordText(text) {
+  parsedWords = [];
+  const lines = text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n').map(l=>l.trim()).filter(l=>l);
+  const headerWords = ['영어','영단어','단어','word','english'];
+
+  lines.forEach((line, i) => {
+    let parts;
+    if (line.includes('\t')) parts = line.split('\t');
+    else if (/\s-\s/.test(line)) parts = line.split(/\s-\s/);
+    else if (line.includes(',')) parts = line.split(',');
+    else parts = [line];
+    parts = parts.map(p=>p.trim()).filter(p=>p!=='');
+    if (!parts.length) return;
+    const en = parts[0]||'', ko = parts[1]||'', ex = parts[2]||'';
+    if (!en) return;
+    // 첫 줄이 헤더행("영어","단어" 등)이면 스킵
+    if (i===0 && headerWords.includes(en.toLowerCase())) return;
+    parsedWords.push({ id:'w'+Date.now()+'_'+parsedWords.length, en, ko, ex });
+  });
+
+  if (!parsedWords.length) { toast('단어를 인식하지 못했습니다. 형식을 확인해주세요.','error'); return; }
+  document.getElementById('word-parsed-count').textContent = parsedWords.length+'개 단어 인식됨';
+  document.getElementById('word-parsed-preview').innerHTML = parsedWords.map((w,i)=>`
+    <div class="parsed-q">
+      <strong>${i+1}. ${w.en}</strong> — ${w.ko||'<span style="color:var(--warning)">뜻 없음</span>'}
+      ${w.ex?`<div style="font-size:.8rem;color:var(--text-dim);margin-top:.2rem">${w.ex}</div>`:''}
+    </div>`).join('');
+  document.getElementById('word-parsed-result').style.display='block';
+}
+
+function clearParsedWords() {
+  parsedWords=[];
+  document.getElementById('word-parsed-result').style.display='none';
+  document.getElementById('word-paste-text').value='';
+}
+
+async function saveWordbook() {
+  const seriesId = document.getElementById('word-series-select').value;
+  const bookNum = parseInt(document.getElementById('word-book-select').value);
+  if (!seriesId) { toast('시리즈를 선택하세요','error'); return; }
+  if (!bookNum) { toast('권호를 선택하세요','error'); return; }
+  if (!parsedWords.length) { toast('파싱된 단어가 없습니다','error'); return; }
+
+  const series = allSeries.find(s=>s.id===seriesId);
+  const wordbookId = seriesId+'_'+bookNum;
+
+  const existing = await db.collection('wordbooks').doc(wordbookId).get();
+  let finalWords = parsedWords;
+
+  if (existing.exists) {
+    const existingWords = existing.data().words || [];
+    const choice = confirm(
+      `${series?.name} ${bookNum}권에 이미 ${existingWords.length}개 단어가 있습니다.\n\n` +
+      `확인 → 기존 단어에 새 단어 추가 (총 ${existingWords.length + parsedWords.length}개)\n` +
+      `취소 → 기존 단어 삭제 후 새 단어로 교체 (${parsedWords.length}개)`
+    );
+    if (choice) {
+      const existingEn = new Set(existingWords.map(w=>w.en.trim().toLowerCase()));
+      const newOnly = parsedWords.filter(w=>!existingEn.has(w.en.trim().toLowerCase()));
+      finalWords = [...existingWords, ...newOnly];
+      if (newOnly.length < parsedWords.length) {
+        toast(`중복 단어 ${parsedWords.length - newOnly.length}개 제외, ${newOnly.length}개 추가됨`, 'info');
+      }
+    }
+  }
+
+  await db.collection('wordbooks').doc(wordbookId).set({
+    seriesId, seriesName: series?.name||'', bookNum,
+    words: finalWords, createdAt: new Date()
+  });
+  toast(`${series?.name} ${bookNum}권 — 총 ${finalWords.length}개 단어 저장 ✓`, 'success');
+  clearParsedWords();
+  await loadWordbookList();
+}
+
+// ── 단어장 목록
+let wordbookListCache = {};
+async function loadWordbookList() {
+  const snap = await db.collection('wordbooks').get();
+  const fs = document.getElementById('word-filter-series').value;
+  let wordbooks=[];
+  snap.forEach(d=>{ const data={id:d.id,...d.data()}; wordbooks.push(data); wordbookListCache[d.id]=data; });
+  if (fs) wordbooks=wordbooks.filter(w=>w.seriesId===fs);
+  wordbooks.sort((a,b)=>a.seriesName<b.seriesName?-1:a.seriesName>b.seriesName?1:a.bookNum-b.bookNum);
+  const el=document.getElementById('word-list-wrap');
+  if (!wordbooks.length) { el.innerHTML='<div class="empty-state"><div class="empty-icon">📗</div>등록된 단어장이 없습니다</div>'; return; }
+
+  el.innerHTML = `<table class="data-table"><thead><tr><th>시리즈</th><th>권</th><th>단어 수</th><th>보기/수정</th><th>삭제</th></tr></thead><tbody>
+    ${wordbooks.map(w=>{
+      const infoBtn = makeInfoBtn(w.seriesId, w.bookNum);
+      return `<tr>
+        <td>${w.seriesName}</td>
+        <td><span style="white-space:nowrap">${w.bookNum}권${infoBtn}</span></td>
+        <td><span class="badge badge-blue">${w.words?.length||0}개</span></td>
+        <td><button class="btn btn-secondary btn-sm" style="padding:.28rem .6rem;font-size:.75rem" data-wb-id="${w.id}" onclick="openWordbookPreview(this.dataset.wbId)">👁 보기</button></td>
+        <td><button class="btn btn-danger btn-sm" style="padding:.28rem .6rem;font-size:.75rem" data-wb-id="${w.id}" data-label="${w.seriesName} ${w.bookNum}권" onclick="deleteWordbook(this.dataset.wbId,this.dataset.label)">삭제</button></td>
+      </tr>`;
+    }).join('')}
+  </tbody></table>`;
+}
+
+async function deleteWordbook(id, label) {
+  if (!confirm('"'+label+'" 단어장을 삭제하시겠습니까? (학생 진행기록도 함께 정리됩니다)')) return;
+  await db.collection('wordbooks').doc(id).delete();
+  toast(label+' 단어장이 삭제되었습니다');
+  await loadWordbookList();
+  await loadDashboard();
+}
+
+// ── 단어장 보기/개별 단어 삭제 모달
+let previewWordbook = null;
+async function openWordbookPreview(id) {
+  let wb = wordbookListCache[id];
+  if (!wb) {
+    const snap = await db.collection('wordbooks').doc(id).get();
+    if (!snap.exists) { toast('단어장을 찾을 수 없습니다','error'); return; }
+    wb = { id, ...snap.data() };
+  }
+  previewWordbook = wb;
+  document.getElementById('wordbook-modal-sub').textContent = `${wb.seriesName} ${wb.bookNum}권 · 총 ${wb.words.length}개 단어`;
+  renderWordbookModalList();
+  openModal('wordbook-modal');
+}
+function renderWordbookModalList() {
+  document.getElementById('wordbook-modal-list').innerHTML = previewWordbook.words.map((w,i)=>`
+    <div class="parsed-q" style="display:flex;justify-content:space-between;align-items:center;gap:.5rem">
+      <div>
+        <strong>${w.en}</strong> — ${w.ko}
+        ${w.ex?`<div style="font-size:.78rem;color:var(--text-dim);margin-top:.15rem">${w.ex}</div>`:''}
+      </div>
+      <button class="btn btn-danger btn-sm" style="padding:.2rem .5rem;font-size:.72rem;flex-shrink:0" onclick="deleteWordFromWordbook(${i})">삭제</button>
+    </div>`).join('');
+}
+async function deleteWordFromWordbook(idx) {
+  if (!confirm('이 단어를 삭제하시겠습니까?')) return;
+  previewWordbook.words.splice(idx,1);
+  await db.collection('wordbooks').doc(previewWordbook.id).set(previewWordbook);
+  wordbookListCache[previewWordbook.id] = previewWordbook;
+  document.getElementById('wordbook-modal-sub').textContent = `${previewWordbook.seriesName} ${previewWordbook.bookNum}권 · 총 ${previewWordbook.words.length}개 단어`;
+  renderWordbookModalList();
+  await loadWordbookList();
+  toast('삭제되었습니다');
 }
 
 async function downloadSeriesAll(seriesId) {
@@ -2240,6 +2595,35 @@ function showResultDetail(resultId) {
 let _cachedSeriesList = null;
 let _cachedQuizCounts = null;
 let _cachedStudentResults = null;
+let _cachedStudentWordResults = null;
+let _cachedWordbooks = {}; // seriesId_bookNum -> wordbook doc (학생 화면 재조회 방지)
+
+async function _getStudentWordResults() {
+  if (_cachedStudentWordResults) return _cachedStudentWordResults;
+  const snap = await db.collection('wordQuizResults').where('studentId', '==', currentStudentId).get();
+  const results = {};
+  snap.forEach(d => { const data=d.data(); results[data.seriesId+'_'+data.bookNum]=data; });
+  _cachedStudentWordResults = results;
+  return results;
+}
+
+async function getWordbook(seriesId, bookNum) {
+  const key = seriesId+'_'+bookNum;
+  if (_cachedWordbooks[key] !== undefined) return _cachedWordbooks[key];
+  const snap = await db.collection('wordbooks').doc(key).get();
+  const data = snap.exists ? { id:key, ...snap.data() } : null;
+  _cachedWordbooks[key] = data;
+  return data;
+}
+
+// 휴지통: 학생별 + 단어장별 문서 1개에 배열로 저장 (읽기/쓰기 호출 최소화)
+async function getWordTrash(studentId, wordbookId) {
+  const snap = await db.collection('wordTrash').doc(studentId+'_'+wordbookId).get();
+  return snap.exists ? new Set(snap.data().trashedWordIds || []) : new Set();
+}
+async function saveWordTrash(studentId, wordbookId, trashSet) {
+  await db.collection('wordTrash').doc(studentId+'_'+wordbookId).set({ trashedWordIds: Array.from(trashSet) });
+}
 
 async function _getSeriesAndQuizCounts() {
   if (_cachedSeriesList && _cachedQuizCounts) {
@@ -2286,6 +2670,7 @@ async function initStudentPage(studentId) {
   showPage('student-page');
   // 진입 시 series, quizzes, results 한번에 병렬 프리패치
   _cachedSeriesList = null; _cachedQuizCounts = null; _cachedStudentResults = null;
+  _cachedStudentWordResults = null; _cachedWordbooks = {};
   const [{ seriesList, quizCounts }, results] = await Promise.all([
     _getSeriesAndQuizCounts(),
     _getStudentResults()
@@ -2328,7 +2713,7 @@ async function loadStudentLevel() {
     selectStudentLevel(card.dataset.level);
   };
 
-  ['level','series','book','quiz','result'].forEach(v=>{
+  ['level','series','book','quiz','result','word','wordquiz','wordresult'].forEach(v=>{
     const el=document.getElementById('sv-'+v);
     if(el) el.style.display=v==='level'?'block':'none';
   });
@@ -2371,7 +2756,7 @@ async function selectStudentLevel(levelId) {
     };
   }
 
-  ['level','series','book','quiz','result'].forEach(v=>{
+  ['level','series','book','quiz','result','word','wordquiz','wordresult'].forEach(v=>{
     const el=document.getElementById('sv-'+v);
     if(el) el.style.display=v==='series'?'block':'none';
   });
@@ -2400,6 +2785,13 @@ async function selectStudentSeries(seriesId) {
 
   // results: 캐시 우선 사용, 퀴즈 제출 후엔 캐시 무효화되므로 항상 최신
   studentResults = await _getStudentResults();
+
+  // 단어장: 이 시리즈에 등록된 권호 집합, 학생의 단어퀴즈 완료 기록
+  const wbSnap = await db.collection('wordbooks').where('seriesId', '==', seriesId).get();
+  const wordbookAvailable = new Set();
+  wbSnap.forEach(d => wordbookAvailable.add(d.data().bookNum));
+  const studentWordResults = await _getStudentWordResults();
+
   document.getElementById('bc-series').textContent=currentSeriesData.name;
   document.getElementById('book-view-title').textContent=currentSeriesData.name;
   const list=document.getElementById('student-book-list');
@@ -2407,9 +2799,15 @@ async function selectStudentSeries(seriesId) {
     const has=available.has(n);
     const done=studentResults[seriesId+'_'+n];
     const title = currentSeriesData.bookTitles && currentSeriesData.bookTitles[n] ? currentSeriesData.bookTitles[n] : null;
+    const hasWordbook = wordbookAvailable.has(n);
+    const wordDone = studentWordResults[seriesId+'_'+n];
+    const wordBtnCls = !hasWordbook ? 'word-btn disabled' : (wordDone ? 'word-btn done' : 'word-btn available');
+    const wordBtnLabel = wordDone ? '단어✓' : '단어';
+    const wordBtnHtml = `<button class="${wordBtnCls}" ${!hasWordbook?'disabled':''} data-booknum="${n}" data-word-action="1">${wordBtnLabel}</button>`;
     return `<div class="book-item${done?' completed':''}${!has?' disabled':''}"
       data-booknum="${n}" data-available="${has?'1':'0'}"
       style="${!has?'opacity:.35;cursor:not-allowed;pointer-events:none':'cursor:pointer'}">
+      ${wordBtnHtml}
       <div class="book-num">${n}</div>
       <div class="text-sm text-dim" style="margin-top:.15rem">${title?`<span style="font-size:.72rem;line-height:1.3;display:block;color:var(--text-dim)">${title}</span>`:'권'}</div>
       ${done?`<div class="book-done">✅${done.score}/10</div>`:''}
@@ -2419,13 +2817,19 @@ async function selectStudentSeries(seriesId) {
 
   // onclick으로 단순하게 처리 (addEventListener 중복 누적 방지)
   list.onclick = (e) => {
+    const wordBtn = e.target.closest('[data-word-action]');
+    if (wordBtn) {
+      if (wordBtn.disabled) return;
+      openWordStudy(currentSeriesId, parseInt(wordBtn.dataset.booknum));
+      return;
+    }
     const item = e.target.closest('.book-item');
     if (!item || item.dataset.available !== '1') return;
     startQuiz(currentSeriesId, parseInt(item.dataset.booknum));
   };
 
   // book 뷰 표시
-  ['series','book','quiz','result'].forEach(v=>{
+  ['series','book','quiz','result','word','wordquiz','wordresult'].forEach(v=>{
     document.getElementById('sv-'+v).style.display = v==='book' ? 'block' : 'none';
   });
 }
@@ -2559,8 +2963,225 @@ function toggleWrongDetail(item) {
   });
 }
 
+// ══════════════════════════════════════════
+// ── 단어장 학습 (학생 화면)
+// ══════════════════════════════════════════
+let currentWordbook = null;
+let currentWordIdx = 0;
+let currentWordTrashIds = new Set();
+let wordTrashView = false;
+
+async function openWordStudy(seriesId, bookNum) {
+  const wb = await getWordbook(seriesId, bookNum);
+  if (!wb || !wb.words || !wb.words.length) { toast('등록된 단어장이 없습니다','error'); return; }
+  currentWordbook = wb;
+  currentSeriesId = seriesId;
+  currentBookNum = bookNum;
+  currentWordTrashIds = await getWordTrash(currentStudentId, wb.id);
+  wordTrashView = false;
+  currentWordIdx = 0;
+
+  document.getElementById('bc-level-name4').textContent = document.getElementById('bc-level-name2').textContent;
+  document.getElementById('bc-word-series').textContent = currentSeriesData ? currentSeriesData.name : '';
+  document.getElementById('bc-word-book').textContent = bookNum+'권 단어장';
+
+  showSV('word');
+  renderWordCard();
+}
+
+function getActiveWords() {
+  return currentWordbook.words.filter(w => !currentWordTrashIds.has(w.id));
+}
+
+function renderWordCard() {
+  document.getElementById('word-trash-toggle-btn').textContent = wordTrashView ? '📖 단어장 보기' : '🗑 휴지통 보기';
+  if (wordTrashView) { renderWordTrashList(); return; }
+
+  const words = getActiveWords();
+  if (!words.length) {
+    document.getElementById('word-progress-text').textContent = '';
+    document.getElementById('word-card-area').innerHTML =
+      `<div class="empty-state"><div class="empty-icon">🗑</div>모든 단어를 휴지통으로 보냈어요!<br>휴지통 보기에서 복원할 수 있어요.</div>`;
+    document.getElementById('word-nav-btns').innerHTML =
+      `<button class="btn btn-secondary" onclick="if(currentSeriesId)selectStudentSeries(currentSeriesId)">← 권호 목록으로</button>`;
+    return;
+  }
+  if (currentWordIdx >= words.length) currentWordIdx = words.length-1;
+  if (currentWordIdx < 0) currentWordIdx = 0;
+  const w = words[currentWordIdx];
+  document.getElementById('word-progress-text').textContent = (currentWordIdx+1)+' / '+words.length;
+  document.getElementById('word-card-area').innerHTML = `
+    <div class="word-en">${w.en}</div>
+    <div class="word-ko">${w.ko}</div>
+    ${w.ex?`<div class="word-ex">"${w.ex}"</div>`:''}
+  `;
+  const isLast = currentWordIdx === words.length-1;
+  document.getElementById('word-nav-btns').innerHTML = `
+    <button class="btn btn-secondary" onclick="prevWord()" ${currentWordIdx===0?'disabled':''}>← 이전</button>
+    ${isLast
+      ? `<button class="btn btn-success" onclick="goToWordQuiz()">단어퀴즈 풀기 🧩</button>`
+      : `<button class="btn btn-primary" onclick="nextWord()">다음 →</button>`}
+    <button class="btn btn-danger" style="margin-left:auto" onclick="trashCurrentWord()">🗑 휴지통으로</button>
+  `;
+}
+
+function prevWord() { if (currentWordIdx>0) { currentWordIdx--; renderWordCard(); } }
+function nextWord() { const words=getActiveWords(); if (currentWordIdx<words.length-1) { currentWordIdx++; renderWordCard(); } }
+
+async function trashCurrentWord() {
+  const words = getActiveWords();
+  const w = words[currentWordIdx];
+  if (!w) return;
+  currentWordTrashIds.add(w.id);
+  await saveWordTrash(currentStudentId, currentWordbook.id, currentWordTrashIds);
+  toast('휴지통으로 보냈어요 🗑');
+  const newWords = getActiveWords();
+  if (currentWordIdx >= newWords.length) currentWordIdx = Math.max(0, newWords.length-1);
+  renderWordCard();
+}
+
+function toggleWordTrashView() { wordTrashView = !wordTrashView; renderWordCard(); }
+
+function renderWordTrashList() {
+  const trashedWords = currentWordbook.words.filter(w => currentWordTrashIds.has(w.id));
+  document.getElementById('word-progress-text').textContent = trashedWords.length+'개 단어';
+  if (!trashedWords.length) {
+    document.getElementById('word-card-area').innerHTML = `<div class="empty-state"><div class="empty-icon">🗑</div>휴지통이 비어있어요</div>`;
+    document.getElementById('word-nav-btns').innerHTML = `<button class="btn btn-secondary" onclick="toggleWordTrashView()">← 단어장으로 돌아가기</button>`;
+    return;
+  }
+  document.getElementById('word-card-area').innerHTML = `
+    <div style="text-align:left;display:flex;flex-direction:column;gap:.5rem;max-height:340px;overflow-y:auto;width:100%">
+      ${trashedWords.map(w=>`
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;padding:.5rem .75rem;background:var(--bg);border-radius:8px">
+          <div><strong>${w.en}</strong> — ${w.ko}</div>
+          <button class="btn btn-secondary btn-sm" data-word-id="${w.id}" onclick="restoreWord(this.dataset.wordId)">↩ 복원</button>
+        </div>`).join('')}
+    </div>`;
+  document.getElementById('word-nav-btns').innerHTML = `<button class="btn btn-secondary" onclick="toggleWordTrashView()">← 단어장으로 돌아가기</button>`;
+}
+
+async function restoreWord(wordId) {
+  currentWordTrashIds.delete(wordId);
+  await saveWordTrash(currentStudentId, currentWordbook.id, currentWordTrashIds);
+  toast('복원했어요 ↩');
+  renderWordTrashList();
+}
+
+// ── 단어퀴즈 (한글뜻찾기 / 영어단어찾기 / 예문빈칸)
+let wordQuizQuestions = [], wordQuizAnswers = {}, wordQuizRevealed = false, currentWQIdx = 0;
+
+function shuffleArr(arr) {
+  const a=[...arr];
+  for (let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
+  return a;
+}
+function shuffleOptions(arr) {
+  const uniq = [...new Set(arr.filter(v=>v))];
+  const opts = shuffleArr(uniq).slice(0,4);
+  return opts;
+}
+
+function buildWordQuestion(word, type, pool) {
+  const others = shuffleArr(pool.filter(w=>w.id!==word.id));
+  const distractors3 = others.slice(0,3);
+
+  if (type==='ko') {
+    const options = shuffleOptions([word.ko, ...distractors3.map(d=>d.ko)]);
+    return { prompt:`"${word.en}"의 뜻은 무엇일까요?`, options, answer: word.ko };
+  }
+  if (type==='en') {
+    const options = shuffleOptions([word.en, ...distractors3.map(d=>d.en)]);
+    return { prompt:`"${word.ko}"에 맞는 영어 단어는 무엇일까요?`, options, answer: word.en };
+  }
+  // 예문 빈칸
+  const re = new RegExp(word.en.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'), 'ig');
+  const blanked = word.ex.replace(re, '_____');
+  const options = shuffleOptions([word.en, ...distractors3.map(d=>d.en)]);
+  return { prompt:`빈칸에 알맞은 단어를 고르세요: "${blanked}"`, options, answer: word.en };
+}
+
+function goToWordQuiz() {
+  const pool = getActiveWords(); // 휴지통으로 보낸 단어 제외
+  if (pool.length < 4) { toast('단어퀴즈를 만들기엔 단어 수가 부족해요 (최소 4개 필요)','error'); return; }
+
+  const QUIZ_COUNT = 20;
+  const selected = shuffleArr(pool).slice(0, Math.min(QUIZ_COUNT, pool.length));
+
+  wordQuizQuestions = selected.map(w => {
+    const types = w.ex ? ['ko','en','ex'] : ['ko','en'];
+    const type = types[Math.floor(Math.random()*types.length)];
+    return buildWordQuestion(w, type, pool);
+  });
+  wordQuizAnswers = {}; wordQuizRevealed = false; currentWQIdx = 0;
+
+  document.getElementById('bc-word-series2').textContent = currentSeriesData ? currentSeriesData.name : '';
+  document.getElementById('bc-word-book2').textContent = currentBookNum+'권';
+  showSV('wordquiz');
+  renderWordQuestion(0);
+}
+
+function renderWordQuestion(idx) {
+  currentWQIdx=idx;
+  const qs=wordQuizQuestions, q=qs[idx], total=qs.length;
+  document.getElementById('wordquiz-progress-text').textContent=(idx+1)+' / '+total;
+  document.getElementById('wordquiz-progress-fill').style.width=((idx+1)/total*100)+'%';
+  const sel=wordQuizAnswers[idx];
+  const letters=['A','B','C','D'];
+  document.getElementById('wordquiz-question-area').innerHTML = `
+    <div class="question-card">
+      <div class="question-num">${idx+1} / ${total}</div>
+      <div class="question-text">${q.prompt}</div>
+      <div class="options-grid">
+        ${q.options.map((opt,i)=>{
+          const k=letters[i];
+          let cls='option-btn';
+          if (wordQuizRevealed) {
+            if (opt===q.answer) cls+=' correct';
+            else if (sel===opt) cls+=' wrong';
+          } else if (sel===opt) cls+=' selected';
+          return `<button class="${cls}" data-wq-idx="${idx}" data-wq-opt="${i}" ${wordQuizRevealed?'disabled':''}>
+            <span class="option-key">${k}</span><span>${opt}</span></button>`;
+        }).join('')}
+      </div>
+    </div>`;
+  // 옵션 문자열에 특수문자가 있어도 안전하도록 이벤트 위임 방식으로 바인딩
+  document.querySelectorAll('#wordquiz-question-area [data-wq-opt]').forEach(btn=>{
+    btn.onclick = () => selectWordAnswer(idx, q.options[parseInt(btn.dataset.wqOpt)]);
+  });
+  const allDone=Object.keys(wordQuizAnswers).length===total;
+  document.getElementById('wordquiz-nav-btns').innerHTML=`
+    ${idx>0?`<button class="btn btn-secondary" onclick="renderWordQuestion(${idx-1})">← 이전</button>`:''}
+    ${idx<total-1?`<button class="btn btn-primary" onclick="renderWordQuestion(${idx+1})" ${!wordQuizAnswers[idx]&&!wordQuizRevealed?'disabled':''}>다음 →</button>`:''}
+    ${idx===total-1&&!wordQuizRevealed?`<button class="btn btn-success" onclick="submitWordQuiz()" ${!allDone?'disabled':''}>제출하기 ✓</button>`:''}
+    <span class="text-dim text-sm" style="margin-left:auto">${Object.keys(wordQuizAnswers).length}/${total} 답변됨</span>`;
+}
+
+function selectWordAnswer(idx, val) { if (wordQuizRevealed) return; wordQuizAnswers[idx]=val; renderWordQuestion(idx); }
+
+async function submitWordQuiz() {
+  wordQuizRevealed=true;
+  let score=0;
+  const total=wordQuizQuestions.length;
+  wordQuizQuestions.forEach((q,i)=>{ if (wordQuizAnswers[i]===q.answer) score++; });
+
+  await db.collection('wordQuizResults').doc(currentStudentId+'_'+currentWordbook.id).set({
+    studentId: currentStudentId, studentName: currentStudentData.name,
+    seriesId: currentSeriesId, seriesName: currentSeriesData.name,
+    bookNum: currentBookNum, score, total,
+    submittedAt: firebase.firestore.FieldValue.serverTimestamp()
+  });
+  _cachedStudentWordResults = null; // 다음 조회 시 최신 완료상태 반영
+
+  document.getElementById('wordresult-score-display').textContent = score+' / '+total;
+  const pct = score/total;
+  const msgs=['다시 한번 도전해보세요! 💪','조금 더 열심히 외워봐요! 📖','잘했어요! 계속 해봐요! 🌟','훌륭해요! 거의 다 맞혔어요! 🎯','완벽해요! 최고예요! 🏆'];
+  document.getElementById('wordresult-msg-display').textContent = msgs[pct<0.3?0:pct<0.5?1:pct<0.7?2:pct<0.95?3:4];
+  showSV('wordresult');
+}
+
 function showSV(view) {
-  ['level','series','book','quiz','result'].forEach(v=>{
+  ['level','series','book','quiz','result','word','wordquiz','wordresult'].forEach(v=>{
     const el=document.getElementById('sv-'+v);
     if(el) el.style.display=v===view?'block':'none';
   });
