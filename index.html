@@ -707,6 +707,7 @@ happy - 행복한 - He looks very happy today."></textarea>
         <div style="display:flex;gap:.5rem;flex-wrap:wrap">
           <button class="btn btn-secondary btn-sm" id="word-autospeak-toggle-btn" onclick="toggleAutoSpeak()"></button>
           <button class="btn btn-secondary btn-sm" id="word-trash-toggle-btn" onclick="toggleWordTrashView()">🗑 휴지통 보기</button>
+          <button class="btn btn-secondary btn-sm" onclick="printWordbook()">🖨 단어장 출력</button>
         </div>
       </div>
       <div class="word-card" id="word-card-area"></div>
@@ -3051,6 +3052,79 @@ async function openWordStudy(seriesId, bookNum) {
 
 function getActiveWords() {
   return currentWordbook.words.filter(w => !currentWordTrashIds.has(w.id));
+}
+
+// ── 단어장 출력 (A4, 번호/영단어/한글뜻/예문)
+function printWordbook() {
+  if (!currentWordbook || !currentWordbook.words || !currentWordbook.words.length) {
+    toast('출력할 단어장이 없습니다','error'); return;
+  }
+  const words = currentWordbook.words; // 휴지통 포함 전체 단어장 기준으로 출력
+  const seriesName = currentSeriesData ? currentSeriesData.name : (currentWordbook.seriesName || '');
+  const bookLabel = (currentBookNum || currentWordbook.bookNum) + '권';
+  const title = `${seriesName} ${bookLabel} 단어장`;
+  const dateStr = new Date().toLocaleDateString('ko-KR');
+
+  const rows = words.map((w, i) => `
+    <tr>
+      <td class="num">${i+1}</td>
+      <td class="en">${escapeHtml(w.en||'')}</td>
+      <td class="ko">${escapeHtml(w.ko||'')}</td>
+      <td class="ex">${w.ex ? escapeHtml(w.ex) : ''}</td>
+    </tr>`).join('');
+
+  const html = `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>${escapeHtml(title)}</title>
+<style>
+  @page { size: A4; margin: 14mm 12mm; }
+  * { box-sizing: border-box; }
+  body { font-family: 'Malgun Gothic','Apple SD Gothic Neo',sans-serif; color:#111; margin:0; padding:0; }
+  .print-header { display:flex; justify-content:space-between; align-items:baseline; border-bottom:2px solid #222; padding-bottom:8px; margin-bottom:12px; }
+  .print-header h1 { font-size:18pt; margin:0; }
+  .print-header .meta { font-size:9pt; color:#555; }
+  table { width:100%; border-collapse:collapse; font-size:10.5pt; }
+  thead th { background:#f0f0f0; border-bottom:2px solid #333; text-align:left; padding:6px 8px; font-size:10pt; }
+  tbody td { padding:6px 8px; border-bottom:1px solid #ddd; vertical-align:top; }
+  td.num { width:6%; color:#888; text-align:center; }
+  td.en { width:22%; font-weight:700; }
+  td.ko { width:22%; }
+  td.ex { width:50%; color:#333; font-style:italic; }
+  tr { break-inside: avoid; }
+  .print-footer { margin-top:16px; font-size:8.5pt; color:#999; text-align:right; }
+  @media print {
+    .no-print { display:none; }
+  }
+  .no-print { position:fixed; top:12px; right:12px; }
+  .no-print button { padding:8px 14px; font-size:11pt; cursor:pointer; }
+</style>
+</head>
+<body>
+  <div class="no-print"><button onclick="window.print()">🖨 인쇄하기</button></div>
+  <div class="print-header">
+    <h1>${escapeHtml(title)}</h1>
+    <div class="meta">총 ${words.length}개 단어 · ${dateStr}</div>
+  </div>
+  <table>
+    <thead><tr><th>No.</th><th>단어</th><th>뜻</th><th>예문</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>
+  <div class="print-footer">${escapeHtml(title)}</div>
+</body>
+</html>`;
+
+  const printWin = window.open('', '_blank');
+  if (!printWin) { toast('팝업이 차단되었습니다. 팝업 허용 후 다시 시도해주세요.','error'); return; }
+  printWin.document.open();
+  printWin.document.write(html);
+  printWin.document.close();
+  printWin.onload = () => { printWin.focus(); printWin.print(); };
+}
+
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 }
 
 function renderWordCard() {
