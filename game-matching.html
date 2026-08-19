@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Matching Game</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<style>
+  html, body { margin:0; padding:0; height:100%; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
+  #root { height:100%; }
+.-bottom-5{bottom:-1.25rem;}
+.-left-3{left:-0.75rem;}
+.-right-3{right:-0.75rem;}
+.-translate-x-1\/2{transform:translateX(-50%);}
+.-translate-y-1\/2{transform:translateY(-50%);}
+.absolute{position:absolute;}
+.active\:scale-95{transform:scale(0.95);}
+.align-top{vertical-align:top;}
+.animate-spin{animation: css-spin 1s linear infinite;}
+.aspect-square{aspect-ratio:1/1;}
+.bg-white{background-color:#fff;}
+.block{display:block;}
+.border{border-width:1px;border-style:solid;border-color:#e5e7eb;}
+.border-2{border-width:2px;border-style:solid;border-color:#e5e7eb;}
+.border-b{border-bottom-width:1px;border-bottom-style:solid;border-color:#e5e7eb;}
+.border-b-2{border-bottom-width:2px;border-bottom-style:solid;border-color:#e5e7eb;}
+.border-dashed{border-style:dashed;}
+.bottom-0{bottom:0px;}
+.bottom-5{bottom:1.25rem;}
+.cursor-pointer{cursor:pointer;}
+.disabled\:opacity-30:disabled{opacity:0.3;}
+.fixed{position:fixed;}
+.flex{display:flex;}
+.flex-1{flex:1 1 0%;}
+.flex-col{flex-direction:column;}
+.flex-shrink-0{flex-shrink:0;}
+.flex-wrap{flex-wrap:wrap;}
+.focus\:ring-2:focus{box-shadow:0 0 0 3px rgba(37,99,235,0.25);}
+.font-bold{font-weight:700;}
+.font-extrabold{font-weight:800;}
+.font-medium{font-weight:500;}
+.font-mono{font-family: ui-monospace, monospace;}
+.font-semibold{font-weight:600;}
+.font-serif{font-family: ui-serif, Georgia, serif;}
+.gap-1{gap:0.25rem;}
+.gap-1\.5{gap:0.375rem;}
+.gap-2{gap:0.5rem;}
+.gap-3{gap:0.75rem;}
+.gap-4{gap:1rem;}
+.gap-5{gap:1.25rem;}
+.gap-6{gap:1.5rem;}
+.gap-8{gap:2rem;}
+.grid{display:grid;}
+.grid-cols-1{grid-template-columns:repeat(1,minmax(0,1fr));}
+.grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr));}
+.grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr));}
+.group{}
+.h-0{height:0px;}
+.h-1\.5{height:0.375rem;}
+.h-11{height:2.75rem;}
+.h-12{height:3rem;}
+.h-14{height:3.5rem;}
+.h-2{height:0.5rem;}
+.h-6{height:1.5rem;}
+.h-7{height:1.75rem;}
+.h-8{height:2rem;}
+.h-9{height:2.25rem;}
+.h-full{height:100%;}
+.h-screen{height:100vh;}
+.hidden{display:none;}
+.hover\:-translate-y-0\.5:hover{transform:translateY(-0.125rem);}
+.hover\:-translate-y-1:hover{transform:translateY(-0.25rem);}
+.hover\:shadow-md:hover{box-shadow:0 4px 6px -1px rgba(0,0,0,.1),0 2px 4px -2px rgba(0,0,0,.1);}
+.inline-block{display:inline-block;}
+.inset-0{top:0;right:0;bottom:0;left:0;}
+.italic{font-style:italic;}
+.items-center{align-items:center;}
+.justify-between{justify-content:space-between;}
+.justify-center{justify-content:center;}
+.justify-end{justify-content:flex-end;}
+.leading-none{line-height:1;}
+.leading-relaxed{line-height:1.625;}
+.left-0{left:0px;}
+.left-1\/2{left:50%;}
+.left-3{left:0.75rem;}
+.left-4{left:1rem;}
+.max-w-2xl{max-width:42rem;}
+.max-w-3xl{max-width:48rem;}
+.max-w-6xl{max-width:72rem;}
+.max-w-lg{max-width:32rem;}
+.max-w-md{max-width:28rem;}
+.mb-0\.5{margin-bottom:0.125rem;}
+.mb-1{margin-bottom:0.25rem;}
+.mb-1\.5{margin-bottom:0.375rem;}
+.mb-14{margin-bottom:3.5rem;}
+.mb-2{margin-bottom:0.5rem;}
+.mb-3{margin-bottom:0.75rem;}
+.mb-4{margin-bottom:1rem;}
+.min-h-screen{min-height:100vh;}
+.ml-1{margin-left:0.25rem;}
+.mt-1{margin-top:0.25rem;}
+.mt-1\.5{margin-top:0.375rem;}
+.mt-2{margin-top:0.5rem;}
+.mt-3{margin-top:0.75rem;}
+.mt-4{margin-top:1rem;}
+.mt-6{margin-top:1.5rem;}
+.mx-auto{margin-left:auto;margin-right:auto;}
+.object-cover{object-fit:cover;}
+.outline-none{outline:none;}
+.overflow-hidden{overflow:hidden;}
+.overflow-x-auto{overflow-x:auto;}
+.overflow-y-auto{overflow-y:auto;}
+.p-2{padding:0.5rem;}
+.p-2\.5{padding:0.625rem;}
+.p-3{padding:0.75rem;}
+.p-4{padding:1rem;}
+.p-5{padding:1.25rem;}
+.p-8{padding:2rem;}
+.pb-1{padding-bottom:0.25rem;}
+.pb-6{padding-bottom:1.5rem;}
+.pl-10{padding-left:2.5rem;}
+.pr-4{padding-right:1rem;}
+.pt-4{padding-top:1rem;}
+.pt-5{padding-top:1.25rem;}
+.px-1\.5{padding-left:0.375rem;padding-right:0.375rem;}
+.px-10{padding-left:2.5rem;padding-right:2.5rem;}
+.px-2{padding-left:0.5rem;padding-right:0.5rem;}
+.px-2\.5{padding-left:0.625rem;padding-right:0.625rem;}
+.px-3{padding-left:0.75rem;padding-right:0.75rem;}
+.px-3\.5{padding-left:0.875rem;padding-right:0.875rem;}
+.px-4{padding-left:1rem;padding-right:1rem;}
+.px-5{padding-left:1.25rem;padding-right:1.25rem;}
+.px-6{padding-left:1.5rem;padding-right:1.5rem;}
+.py-0\.5{padding-top:0.125rem;padding-bottom:0.125rem;}
+.py-1{padding-top:0.25rem;padding-bottom:0.25rem;}
+.py-1\.5{padding-top:0.375rem;padding-bottom:0.375rem;}
+.py-2{padding-top:0.5rem;padding-bottom:0.5rem;}
+.py-2\.5{padding-top:0.625rem;padding-bottom:0.625rem;}
+.py-20{padding-top:5rem;padding-bottom:5rem;}
+.py-3{padding-top:0.75rem;padding-bottom:0.75rem;}
+.py-3\.5{padding-top:0.875rem;padding-bottom:0.875rem;}
+.py-4{padding-top:1rem;padding-bottom:1rem;}
+.py-5{padding-top:1.25rem;padding-bottom:1.25rem;}
+.py-8{padding-top:2rem;padding-bottom:2rem;}
+.relative{position:relative;}
+.right-0{right:0px;}
+.right-2{right:0.5rem;}
+.rounded-2xl{border-radius:1rem;}
+.rounded-full{border-radius:9999px;}
+.rounded-lg{border-radius:0.5rem;}
+.rounded-md{border-radius:0.375rem;}
+.rounded-t-lg{border-top-left-radius:0.5rem;border-top-right-radius:0.5rem;}
+.rounded-xl{border-radius:0.75rem;}
+.shadow{box-shadow:0 1px 3px rgba(0,0,0,.12),0 1px 2px rgba(0,0,0,.08);}
+.shadow-2xl{box-shadow:0 25px 50px -12px rgba(0,0,0,.25);}
+.shadow-lg{box-shadow:0 10px 15px -3px rgba(0,0,0,.1),0 4px 6px -4px rgba(0,0,0,.1);}
+.shadow-md{box-shadow:0 4px 6px -1px rgba(0,0,0,.1),0 2px 4px -2px rgba(0,0,0,.1);}
+.space-y-3 > * + *{margin-top:0.75rem;}
+.space-y-6 > * + *{margin-top:1.5rem;}
+.sticky{position:sticky;}
+.text-2xl{font-size:1.5rem;line-height:2rem;}
+.text-3xl{font-size:1.875rem;line-height:2.25rem;}
+.text-4xl{font-size:2.25rem;line-height:2.5rem;}
+.text-5xl{font-size:3rem;line-height:1;}
+.text-\[10px\]{font-size:10px;}
+.text-\[11px\]{font-size:11px;}
+.text-base{font-size:1rem;line-height:1.5rem;}
+.text-center{text-align:center;}
+.text-left{text-align:left;}
+.text-lg{font-size:1.125rem;line-height:1.75rem;}
+.text-right{text-align:right;}
+.text-sm{font-size:0.875rem;line-height:1.25rem;}
+.text-white{color:#fff;}
+.text-xl{font-size:1.25rem;line-height:1.75rem;}
+.text-xs{font-size:0.75rem;line-height:1rem;}
+.top-0{top:0px;}
+.top-1\/2{top:50%;}
+.top-2{top:0.5rem;}
+.top-4{top:1rem;}
+.tracking-tight{letter-spacing:-0.025em;}
+.tracking-widest{letter-spacing:0.1em;}
+.transition{transition-property:all;transition-duration:150ms;}
+.transition-all{transition-property:all;transition-duration:150ms;}
+.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.w-0{width:0px;}
+.w-1\.5{width:0.375rem;}
+.w-1\/2{width:50%;}
+.w-10{width:2.5rem;}
+.w-11{width:2.75rem;}
+.w-14{width:3.5rem;}
+.w-20{width:5rem;}
+.w-6{width:1.5rem;}
+.w-7{width:1.75rem;}
+.w-8{width:2rem;}
+.w-9{width:2.25rem;}
+.w-full{width:100%;}
+.z-10{z-index:10;}
+.z-20{z-index:20;}
+.z-40{z-index:40;}
+.z-50{z-index:50;}
+@media (min-width:640px){
+.sm\:flex{display:flex;}
+.sm\:flex-row{flex-direction:row;}
+.sm\:grid-cols-2{grid-template-columns:repeat(2,minmax(0,1fr));}
+.sm\:grid-cols-3{grid-template-columns:repeat(3,minmax(0,1fr));}
+.sm\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr));}
+.sm\:hidden{display:none;}
+.sm\:max-w-md{max-width:28rem;}
+.sm\:text-4xl{font-size:2.25rem;line-height:2.5rem;}
+}
+@media (min-width:768px){
+.md\:grid-cols-4{grid-template-columns:repeat(4,minmax(0,1fr));}
+}
+@media (min-width:1024px){
+.lg\:px-16{padding-left:4rem;padding-right:4rem;}
+}
+/* 기본 리셋 + 유틸리티 보강 */
+* { box-sizing: border-box; }
+button { font: inherit; cursor: pointer; }
+input, textarea { font: inherit; }
+img { max-width: 100%; display: block; }
+@keyframes css-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+</style>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
+<script>
+// ============================================================
+// firebase-storage.js
+// 1200 Word Dictionary - Firebase 연동 공용 스크립트
+//
+// 이 파일을 5개 HTML(admin.html, student-app.html, game-*.html)에서
+// 공통으로 불러와 씁니다. window.storage.get/set/list/delete 인터페이스는
+// 그대로 유지하면서, 실제 저장은 Firestore(작은 데이터)와
+// Firebase Storage(그림·오디오 같은 큰 파일)로 나눠서 처리합니다.
+//
+// ★★★ 아래 firebaseConfig 자리에 기존 사이트에서 쓰던 설정값을
+//     그대로 붙여넣으세요. ★★★
+// ============================================================
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCPa5LJHQV-nm4F3djEL1481htlJlrE0hU",
+  authDomain: "book-quiz-5cfec.firebaseapp.com",
+  projectId: "book-quiz-5cfec",
+  storageBucket: "book-quiz-5cfec.firebasestorage.app",
+  messagingSenderId: "352729909403",
+  appId: "1:352729909403:web:8cbc1b592995bc2fe91e3e",
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const storage = firebase.storage();
+
+// Firestore 문서 ID로 못 쓰는 문자만 살짝 치환 (콜론, 슬래시 등은 실제로 허용되지만
+// 안전하게 언더바로 통일합니다)
+function sanitizeKey(key) {
+  return String(key).replace(/[\/\s]/g, "_");
+}
+
+// data:... 로 시작하는 base64 문자열을 Firebase Storage에 업로드하고
+// 다운로드 URL로 바꿔줍니다. (Firestore 문서 하나는 1MB 제한이라
+// 그림/오디오 같은 큰 파일은 반드시 Storage에 저장해야 합니다)
+async function uploadDataUrlIfNeeded(key, fieldName, dataUrl) {
+  if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:")) {
+    return dataUrl; // base64 파일이 아니면 그대로 반환 (숫자, 문자열 등)
+  }
+  const res = await fetch(dataUrl);
+  const blob = await res.blob();
+  const ext = blob.type.split("/")[1] || "bin";
+  const path = `media/${sanitizeKey(key)}/${fieldName}.${ext}`;
+  const ref = storage.ref(path);
+  await ref.put(blob);
+  return await ref.getDownloadURL();
+}
+
+window.storage = {
+  // value: JSON 문자열. 그 안에 data:로 시작하는 필드가 있으면
+  // 자동으로 Storage에 업로드하고 URL로 치환한 뒤 Firestore에 저장합니다.
+  async set(key, value, shared) {
+    try {
+      let parsed;
+      try {
+        parsed = JSON.parse(value);
+      } catch (e) {
+        parsed = value; // JSON이 아니면 그냥 문자열 그대로
+      }
+
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        for (const field of Object.keys(parsed)) {
+          if (typeof parsed[field] === "string" && parsed[field].startsWith("data:")) {
+            parsed[field] = await uploadDataUrlIfNeeded(key, field, parsed[field]);
+          }
+        }
+      }
+
+      const finalValue = JSON.stringify(parsed);
+      await db.collection("kv").doc(sanitizeKey(key)).set({
+        value: finalValue,
+        shared: !!shared,
+        updatedAt: Date.now(),
+      });
+      return { key, value: finalValue, shared: !!shared };
+    } catch (e) {
+      console.error("storage.set 실패:", key, e);
+      return null;
+    }
+  },
+
+  async get(key, shared) {
+    const doc = await db.collection("kv").doc(sanitizeKey(key)).get();
+    if (!doc.exists) {
+      throw new Error("not found: " + key);
+    }
+    return { key, value: doc.data().value, shared: !!shared };
+  },
+
+  async delete(key, shared) {
+    await db.collection("kv").doc(sanitizeKey(key)).delete();
+    return { key, deleted: true, shared: !!shared };
+  },
+
+  // prefix로 시작하는 문서 ID들을 찾습니다 (Firestore 문서ID 범위 쿼리 사용)
+  async list(prefix, shared) {
+    const p = sanitizeKey(prefix || "");
+    let query = db.collection("kv");
+    if (p) {
+      query = query
+        .where(firebase.firestore.FieldPath.documentId(), ">=", p)
+        .where(firebase.firestore.FieldPath.documentId(), "<", p + "\uf8ff");
+    }
+    const snap = await query.get();
+    const keys = [];
+    snap.forEach((doc) => keys.push(doc.id));
+    return { keys, prefix, shared: !!shared };
+  },
+};
+
+</script>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useRef, useMemo, useCallback } = React;
+
+function Home({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12l9-9 9 9"/><path d="M9 21V12h6v9"/></svg>);}
+function Trophy({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3a2 2 0 0 1-2 4h-1"/><path d="M7 5H4a2 2 0 0 0 2 4h1"/></svg>);}
+function RotateCcw({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>);}
+function Timer({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="10" y1="2" x2="14" y2="2"/><line x1="12" y1="14" x2="12" y2="9"/><circle cx="12" cy="14" r="8"/></svg>);}
+
+
+const SAMPLE_WORDS = [{"word": "above", "gloss": "~보다 위에", "defn": "When something is above something else, it is higher up.", "example": "These birds are flying above the tree."}, {"word": "accident", "gloss": "사고", "defn": "An accident is something bad that happens by surprise, without anyone planning it.", "example": "This bicycle has an accident when it falls over, and this car has an accident when it crashes into another car."}, {"word": "acrobat", "gloss": "곡예사", "defn": "An acrobat is a performer who does difficult physical tricks like jumping and balancing.", "example": "This acrobat is walking on a rope high above the ground."}, {"word": "act", "gloss": "행동, 행위", "defn": "To act means to perform in front of an audience, like in a play.", "example": "This boy and girl are acting out a play together, and the audience is clapping for them."}, {"word": "add", "gloss": "합하다", "defn": "To add means to put two or more things together to make a bigger number or amount.", "example": "This boy is adding three apples and two apples together."}, {"word": "address", "gloss": "주소", "defn": "An address is the place where a person lives, written with a street name and number.", "example": "This address is written on the front of the envelope."}, {"word": "baby", "gloss": "아기", "defn": "A baby is a very young child who has just been born or is only a few months old.", "example": "This baby is sleeping quietly in the crib."}, {"word": "back", "gloss": "등 / 뒤", "defn": "The word \"back\" has two meanings. One is the part of a person's or animal's body between the neck and the legs, on the opposite side from the chest, and the other is the rear part of something, opposite to the front.", "example": "This girl is scratching the cat's back. / This apple is hidden at the back of the basket."}, {"word": "backpack", "gloss": "책가방", "defn": "A backpack is a bag with straps that is carried on someone's back to hold books or belongings.", "example": "This backpack is full of school books."}, {"word": "bake", "gloss": "음식을 굽다", "defn": "To bake means to cook food, like bread or cake, using dry heat in an oven.", "example": "This girl is baking cookies in the oven."}, {"word": "baker", "gloss": "제빵사", "defn": "A baker is a person whose job is to make bread, cakes, and other baked goods.", "example": "This baker is pulling fresh bread out of the oven."}, {"word": "balance", "gloss": "균형", "defn": "Balance is the ability to stay steady and not fall over.", "example": "This boy is keeping his balance while riding a bicycle."}, {"word": "cabbage", "gloss": "양배추", "defn": "A cabbage is a round vegetable made of many tightly wrapped green leaves.", "example": "This cabbage is being cut into thin pieces."}, {"word": "cabin", "gloss": "오두막집", "defn": "A cabin is a small house, often made of wood, usually found in the woods or mountains.", "example": "This cabin sits quietly among the tall trees."}, {"word": "cactus", "gloss": "선인장", "defn": "A cactus is a spiky plant that grows in the desert and stores water inside its thick stem.", "example": "This cactus is slowly growing taller in the sand."}, {"word": "cake", "gloss": "케이크", "defn": "A cake is a sweet baked dessert, often eaten to celebrate special occasions.", "example": "This cake is being sliced piece by piece."}, {"word": "calculator", "gloss": "계산기", "defn": "A calculator is a small device used to do math problems quickly.", "example": "This calculator is showing the answer to a math problem."}, {"word": "calendar", "gloss": "달력", "defn": "A calendar is a chart that shows the days, weeks, and months of the year.", "example": "This calendar is hanging on the wall, showing today's date."}, {"word": "daffodil", "gloss": "수선화", "defn": "A daffodil is a yellow spring flower with a trumpet-shaped center.", "example": "This daffodil is blooming in the garden."}, {"word": "daisy", "gloss": "데이지", "defn": "A daisy is a small flower with white petals and a yellow center.", "example": "This daisy is growing in the grass."}, {"word": "dam", "gloss": "댐", "defn": "A dam is a strong wall built across a river to hold back water.", "example": "This dam is holding back a large lake of water."}, {"word": "dance", "gloss": "댄스", "defn": "To dance means to move the body to music in a rhythmic way.", "example": "This girl is dancing happily to the music."}, {"word": "dancer", "gloss": "무용수", "defn": "A dancer is a person who dances, often as a performance.", "example": "This dancer is spinning gracefully on stage."}, {"word": "dandelion", "gloss": "민들레", "defn": "A dandelion is a yellow flower that turns into a fluffy white ball of seeds.", "example": "This dandelion is losing its seeds as the wind blows."}, {"word": "eagle", "gloss": "독수리", "defn": "An eagle is a large, powerful bird with sharp eyes that hunts other animals.", "example": "This eagle is soaring high above the mountains."}, {"word": "ear", "gloss": "귀", "defn": "The ear is the part of the body used for hearing.", "example": "This boy is cupping his hand behind his ear to listen closely."}, {"word": "early", "gloss": "이른", "defn": "When something happens early, it happens before the usual or expected time.", "example": "This girl is arriving early, before anyone else."}, {"word": "earrings", "gloss": "귀걸이", "defn": "Earrings are small pieces of jewelry worn on the ears.", "example": "These earrings are sparkling on the girl's ears."}, {"word": "earth", "gloss": "지구", "defn": "Earth is the planet where people, animals, and plants live.", "example": "This earth is shown as a blue and green ball floating in space."}, {"word": "earthquake", "gloss": "지진", "defn": "An earthquake is a sudden shaking of the ground caused by movement deep underground.", "example": "This earthquake is shaking the buildings and cracking the road."}, {"word": "fable", "gloss": "우화", "defn": "A fable is a short story, often with animal characters, that teaches a lesson.", "example": "This fable is about a fox and a crow."}, {"word": "face", "gloss": "얼굴", "defn": "The face is the front part of the head, including the eyes, nose, and mouth.", "example": "This girl is smiling with her whole face."}, {"word": "fact", "gloss": "사실", "defn": "A fact is something that is true and can be proven.", "example": "This fact about elephants is written in the book."}, {"word": "factory", "gloss": "공장", "defn": "A factory is a building where products are made using machines.", "example": "This factory is full of machines making toys."}, {"word": "fair", "gloss": "축제", "defn": "A fair is an outdoor event with games, rides, and food, often to celebrate something.", "example": "This fair has a ferris wheel and colorful game booths."}, {"word": "fall", "gloss": "떨어지다", "defn": "To fall means to drop down suddenly toward the ground.", "example": "This boy is falling off his skateboard."}, {"word": "game", "gloss": "게임", "defn": "A game is a fun activity with rules that people play, often to compete or enjoy themselves.", "example": "This board game is set up with pieces on the table."}, {"word": "garage", "gloss": "차고, 주차장", "defn": "A garage is a building where cars are parked or repaired.", "example": "This car is parked inside the garage."}, {"word": "garden", "gloss": "정원", "defn": "A garden is an area of land where flowers, vegetables, or plants are grown.", "example": "This garden is full of colorful blooming flowers."}, {"word": "gardener", "gloss": "정원사", "defn": "A gardener is a person who takes care of plants in a garden.", "example": "This gardener is watering the flowers with a hose."}, {"word": "gate", "gloss": "문", "defn": "A gate is a movable barrier used to open or close an entrance in a fence or wall.", "example": "This gate is swinging open at the entrance of the yard."}, {"word": "geography", "gloss": "지리학", "defn": "Geography is the study of the Earth's land, countries, and features.", "example": "This geography book shows maps of mountains and rivers."}, {"word": "habitat", "gloss": "서식지", "defn": "A habitat is the natural place where an animal or plant normally lives.", "example": "This habitat has tall trees and a small stream for the animals."}, {"word": "hair", "gloss": "머리", "defn": "Hair is the soft strands that grow on top of the head and body.", "example": "This girl's hair is long and curly."}, {"word": "hairdresser", "gloss": "미용사", "defn": "A hairdresser is a person whose job is to cut and style hair.", "example": "This hairdresser is cutting a customer's hair."}, {"word": "half", "gloss": "반", "defn": "Half is one of two equal parts of something.", "example": "This apple has been cut into two equal halves."}, {"word": "hamburger", "gloss": "햄버거", "defn": "A hamburger is a sandwich made with a round bun and a cooked meat patty.", "example": "This hamburger is stacked with lettuce and tomato."}, {"word": "hammer", "gloss": "망치", "defn": "A hammer is a tool with a heavy head used to hit nails.", "example": "This boy is hitting a nail with a hammer."}, {"word": "ice", "gloss": "얼음", "defn": "Ice is water that has frozen solid and become hard.", "example": "This ice is melting slowly in the warm sun."}, {"word": "iceberg", "gloss": "빙산", "defn": "An iceberg is a huge chunk of ice floating in the ocean.", "example": "This iceberg is floating in the cold sea."}, {"word": "icecream", "gloss": "아이스크림", "defn": "Ice cream is a sweet, cold, frozen dessert.", "example": "This ice cream is melting and dripping down the cone."}, {"word": "icicle", "gloss": "고드름", "defn": "An icicle is a long, pointed piece of ice formed when dripping water freezes.", "example": "This icicle is hanging from the edge of the roof."}, {"word": "igloo", "gloss": "이글루", "defn": "An igloo is a small, round house built from blocks of snow.", "example": "This igloo sits alone in the snowy landscape."}, {"word": "iguana", "gloss": "이구아나", "defn": "An iguana is a large lizard with a spiky ridge along its back.", "example": "This iguana is resting on a warm rock."}, {"word": "jacket", "gloss": "상의", "defn": "A jacket is a short coat worn over other clothes.", "example": "This boy is zipping up his jacket."}, {"word": "jaguar", "gloss": "재규어", "defn": "A jaguar is a large wild cat with spotted fur that lives in the rainforest.", "example": "This jaguar is prowling through the jungle."}, {"word": "jam", "gloss": "잼", "defn": "Jam is a sweet spread made by cooking fruit with sugar.", "example": "This jam is being spread on a slice of bread."}, {"word": "January", "gloss": "1월", "defn": "January is the first month of the year.", "example": "This January, everyone is celebrating the new year."}, {"word": "jar", "gloss": "병", "defn": "A jar is a glass or plastic container with a wide opening, often used to store food.", "example": "This jar is filled with cookies."}, {"word": "jaw", "gloss": "턱", "defn": "The jaw is the bone structure that forms the mouth and holds the teeth.", "example": "This boy is opening his jaw wide to yawn."}, {"word": "kangaroo", "gloss": "캥거루", "defn": "A kangaroo is a large animal that hops on strong back legs and carries its baby in a pouch.", "example": "This kangaroo is hopping across the grassy field."}, {"word": "karate", "gloss": "가라데", "defn": "Karate is a sport that uses hand and foot strikes for self-defense.", "example": "This boy is practicing a karate kick."}, {"word": "key", "gloss": "열쇠", "defn": "A key is a small metal tool used to lock or unlock a door.", "example": "This girl is turning a key in the lock."}, {"word": "kick", "gloss": "차다", "defn": "To kick means to hit something with the foot.", "example": "This boy is kicking a ball across the field."}, {"word": "king", "gloss": "왕", "defn": "A king is a male ruler of a country, often wearing a crown.", "example": "This king is sitting on his throne wearing a crown."}, {"word": "kiss", "gloss": "키스", "defn": "A kiss is when someone touches another person gently with their lips to show love.", "example": "This mother is giving her baby a kiss on the cheek."}, {"word": "ladder", "gloss": "사다리", "defn": "A ladder is a tool with steps used to climb up or down high places.", "example": "This man is climbing up a ladder to reach the roof."}, {"word": "ladle", "gloss": "국자", "defn": "A ladle is a large spoon with a deep bowl, used to serve soup or liquid.", "example": "This ladle is scooping soup out of the pot."}, {"word": "ladybird", "gloss": "무당벌레", "defn": "A ladybird is a small, round beetle, usually red with black spots.", "example": "This ladybird is crawling along a green leaf."}, {"word": "lake", "gloss": "호수", "defn": "A lake is a large area of water surrounded by land.", "example": "This lake is calm and reflects the mountains around it."}, {"word": "lamb", "gloss": "어린 양", "defn": "A lamb is a baby sheep.", "example": "This lamb is following its mother across the field."}, {"word": "lamp", "gloss": "램프", "defn": "A lamp is a device that gives off light, often placed on a table or standing on the floor.", "example": "This lamp is glowing brightly on the desk."}, {"word": "machine", "gloss": "기계", "defn": "A machine is a device with parts that work together to do a job.", "example": "This machine is sorting boxes on the factory line."}, {"word": "magazine", "gloss": "잡지", "defn": "A magazine is a thin book with pictures and articles, published regularly.", "example": "This magazine is open to a colorful page."}, {"word": "magic", "gloss": "마술", "defn": "Magic is the power to make impossible things happen, often used in tricks or stories.", "example": "This magician is performing magic with a wand."}, {"word": "magician", "gloss": "마술사", "defn": "A magician is a person who performs tricks that seem impossible, as if by magic.", "example": "This magician is pulling a rabbit out of a hat."}, {"word": "magnet", "gloss": "자석", "defn": "A magnet is an object that can pull certain metals toward it.", "example": "This magnet is pulling small metal pins toward it."}, {"word": "magnifying glass", "gloss": "돋보기", "defn": "A magnifying glass is a tool with a curved piece of glass used to make things look bigger.", "example": "This detective is looking at a clue through a magnifying glass."}, {"word": "nail", "gloss": "못", "defn": "A nail is a thin metal spike hammered into wood to hold things together.", "example": "This nail is being hammered into a piece of wood."}, {"word": "napkin", "gloss": "냅킨", "defn": "A napkin is a piece of cloth or paper used to wipe the mouth or hands while eating.", "example": "This napkin is placed neatly beside the plate."}, {"word": "narrow", "gloss": "좁은", "defn": "When something is narrow, it is thin from one side to the other.", "example": "This path is narrow, with barely enough room to walk."}, {"word": "nature", "gloss": "자연", "defn": "Nature is everything in the world that is not made by people, like plants, animals, and mountains.", "example": "This nature scene has trees, rivers, and mountains."}, {"word": "neck", "gloss": "목", "defn": "The neck is the part of the body that connects the head to the shoulders.", "example": "This giraffe has a very long neck."}, {"word": "necklace", "gloss": "목걸이", "defn": "A necklace is a piece of jewelry worn around the neck.", "example": "This necklace is sparkling around the girl's neck."}, {"word": "oar", "gloss": "노", "defn": "An oar is a long pole with a flat end used to row a boat.", "example": "This boy is rowing the boat with two oars."}, {"word": "ocean", "gloss": "대양", "defn": "An ocean is a very large area of salt water that covers much of the Earth.", "example": "This ocean stretches out to the horizon."}, {"word": "October", "gloss": "10월", "defn": "October is the tenth month of the year.", "example": "This October, pumpkins are being carved for the season."}, {"word": "octopus", "gloss": "문어", "defn": "An octopus is a sea creature with a soft body and eight long arms.", "example": "This octopus is swimming through the coral reef."}, {"word": "office", "gloss": "사무실", "defn": "An office is a room or building where people work, often doing paperwork or business tasks.", "example": "This woman is working at her desk in the office."}, {"word": "oil", "gloss": "기름", "defn": "Oil is a thick, greasy liquid used for cooking, machines, or fuel.", "example": "This oil is being poured into the frying pan."}, {"word": "pack", "gloss": "짐을 싸다", "defn": "To pack means to put things into a bag or container to take somewhere.", "example": "This girl is packing clothes into her suitcase."}, {"word": "package", "gloss": "상자", "defn": "A package is a box or wrapped item, often sent through the mail.", "example": "This package is sitting on the doorstep."}, {"word": "page", "gloss": "페이지", "defn": "A page is one side of a sheet of paper in a book.", "example": "This boy is turning the page of his book."}, {"word": "paint", "gloss": "페인트 / 칠하다", "defn": "The word \"paint\" has two meanings. One is a colored liquid used to cover surfaces, and the other means to use that liquid to create art or cover something.", "example": "This paint is spilling out of the can. / This girl is painting a picture on paper."}, {"word": "pair", "gloss": "한 쌍", "defn": "A pair is a set of two matching things.", "example": "This pair of shoes is sitting neatly by the door."}, {"word": "pajamas", "gloss": "잠옷", "defn": "Pajamas are loose, comfortable clothes worn for sleeping.", "example": "This boy is wearing pajamas before going to bed."}, {"word": "quarter", "gloss": "4분의 1", "defn": "A quarter is one of four equal parts of something.", "example": "This pizza is cut into four quarters, and one quarter is on the plate."}, {"word": "queen", "gloss": "여왕", "defn": "A queen is a female ruler of a country, or the wife of a king.", "example": "This queen is sitting on her throne wearing a crown."}, {"word": "question", "gloss": "질문", "defn": "A question is something asked in order to get information.", "example": "This girl is raising her hand to ask a question."}, {"word": "quick", "gloss": "빠른", "defn": "When something is quick, it happens or moves fast.", "example": "This rabbit is quick, hopping away in a flash."}, {"word": "quiet", "gloss": "조용한", "defn": "When something is quiet, it makes very little or no sound.", "example": "This library is quiet, with everyone reading silently."}, {"word": "quilt", "gloss": "누비 이불", "defn": "A quilt is a warm blanket made of layered fabric stitched together in patterns.", "example": "This quilt is covering the bed with colorful patterns."}, {"word": "rabbit", "gloss": "토끼", "defn": "A rabbit is a small, furry animal with long ears that hops.", "example": "This rabbit is hopping through the grass."}, {"word": "raccoon", "gloss": "미국 너구리", "defn": "A raccoon is a small animal with a striped tail and a mask-like pattern around its eyes.", "example": "This raccoon is searching through a trash can at night."}, {"word": "race", "gloss": "경주", "defn": "A race is a competition to see who can go the fastest.", "example": "This race has runners sprinting toward the finish line."}, {"word": "racing car", "gloss": "경주용 자동차", "defn": "A racing car is a fast car built for competing in races.", "example": "This racing car is speeding around the track."}, {"word": "radar", "gloss": "레이더", "defn": "Radar is a device that uses radio waves to detect the location of objects, like planes or ships.", "example": "This radar screen is showing the position of an airplane."}, {"word": "radio", "gloss": "라디오", "defn": "A radio is a device that receives and plays sound broadcasts, like music or news.", "example": "This radio is playing music in the kitchen."}, {"word": "sad", "gloss": "슬픈", "defn": "When someone is sad, they feel unhappy.", "example": "This boy is sad because he lost his toy."}, {"word": "saddle", "gloss": "안장", "defn": "A saddle is a seat placed on a horse's back for a rider.", "example": "This saddle is strapped onto the horse's back."}, {"word": "sail", "gloss": "돛 / 항해하다", "defn": "The word \"sail\" has two meanings. One is the large piece of cloth that catches wind to move a boat, and the other means to travel on water using a boat.", "example": "This sail is catching the wind. / This family is sailing across the lake."}, {"word": "salad", "gloss": "샐러드", "defn": "A salad is a dish made of mixed vegetables, often eaten cold.", "example": "This salad is filled with fresh lettuce and tomatoes."}, {"word": "salt", "gloss": "소금", "defn": "Salt is a white substance used to add flavor to food.", "example": "This salt is being sprinkled onto the food."}, {"word": "same", "gloss": "같은", "defn": "When two things are the same, they are exactly alike.", "example": "These two socks are the same color."}, {"word": "T-shirt", "gloss": "티셔츠", "defn": "A T-shirt is a simple, short-sleeved shirt shaped like the letter T.", "example": "This boy is wearing a plain T-shirt."}, {"word": "table", "gloss": "테이블", "defn": "A table is a piece of furniture with a flat top and legs, used for eating or working.", "example": "This table has plates and food set on top."}, {"word": "tadpole", "gloss": "올챙이", "defn": "A tadpole is the young form of a frog, with a tail and no legs.", "example": "This tadpole is swimming in the pond."}, {"word": "tail", "gloss": "꼬리", "defn": "A tail is the long part that extends from the back of an animal's body.", "example": "This dog is wagging its tail happily."}, {"word": "tailor", "gloss": "재단사", "defn": "A tailor is a person whose job is to make and fix clothes.", "example": "This tailor is sewing a suit."}, {"word": "take", "gloss": "가지고 가다", "defn": "To take means to get hold of something and carry it away.", "example": "This boy is taking a cookie from the jar."}, {"word": "umbrella", "gloss": "우산", "defn": "An umbrella is a folding device held above the head to stay dry in the rain.", "example": "This girl is holding an umbrella in the rain."}, {"word": "uncle", "gloss": "삼촌/외삼촌", "defn": "An uncle is the brother of someone's mother or father.", "example": "This uncle is playing catch with his nephew."}, {"word": "under", "gloss": "~의 아래에", "defn": "When something is under something else, it is in a lower position, beneath it.", "example": "This cat is hiding under the table."}, {"word": "underwear", "gloss": "속옷", "defn": "Underwear is clothing worn under other clothes, next to the skin.", "example": "This underwear is folded neatly in the drawer."}, {"word": "undress", "gloss": "옷을 벗다", "defn": "To undress means to take off clothes.", "example": "This boy is undressing before taking a bath."}, {"word": "unicorn", "gloss": "유니콘", "defn": "A unicorn is an imaginary horse-like creature with a single horn on its head.", "example": "This unicorn is galloping through a magical forest."}, {"word": "vacuum", "gloss": "청소기로 청소하다", "defn": "To vacuum means to clean a floor using a machine that sucks up dirt.", "example": "This woman is vacuuming the carpet."}, {"word": "vacuum cleaner", "gloss": "진공청소기", "defn": "A vacuum cleaner is a machine used to clean floors by sucking up dirt and dust.", "example": "This vacuum cleaner is cleaning up crumbs on the rug."}, {"word": "valley", "gloss": "계곡", "defn": "A valley is a low area of land between hills or mountains.", "example": "This valley stretches between two tall mountains."}, {"word": "vegetable", "gloss": "채소", "defn": "A vegetable is a plant or part of a plant eaten as food, like a carrot or potato.", "example": "This vegetable basket is full of carrots and peppers."}, {"word": "vehicle", "gloss": "차량", "defn": "A vehicle is a machine used to carry people or goods from one place to another.", "example": "This vehicle is driving down the road."}, {"word": "vet", "gloss": "수의사", "defn": "A vet is a doctor who takes care of sick or injured animals.", "example": "This vet is examining a dog."}, {"word": "wagon", "gloss": "4륜", "defn": "A wagon is a small cart with wheels, pulled or pushed to carry things.", "example": "This boy is pulling a wagon full of toys."}, {"word": "wait", "gloss": "기다리다", "defn": "To wait means to stay in place until something happens.", "example": "This girl is waiting at the bus stop."}, {"word": "waiter", "gloss": "종업원", "defn": "A waiter is a person who serves food to customers in a restaurant.", "example": "This waiter is bringing food to the table."}, {"word": "wake up", "gloss": "일어나다", "defn": "To wake up means to stop sleeping and become alert.", "example": "This boy is waking up and stretching in bed."}, {"word": "walk", "gloss": "걷다", "defn": "To walk means to move on foot at a normal pace.", "example": "This girl is walking down the sidewalk."}, {"word": "wallaby", "gloss": "왈라비", "defn": "A wallaby is a small animal similar to a kangaroo.", "example": "This wallaby is hopping through the grass."}, {"word": "x-ray", "gloss": "엑스레이", "defn": "An X-ray is a picture that shows the inside of the body, like the bones.", "example": "This X-ray shows the bones inside the hand."}, {"word": "xylophone", "gloss": "실로폰", "defn": "A xylophone is a musical instrument with bars that make sounds when hit with mallets.", "example": "This boy is hitting the bars of a xylophone."}, {"word": "yacht", "gloss": "요트", "defn": "A yacht is a large, fancy boat used for pleasure trips or racing.", "example": "This yacht is sailing across the calm sea."}, {"word": "yawn", "gloss": "하품하다", "defn": "To yawn means to open the mouth wide and breathe in deeply, often when tired.", "example": "This boy is yawning before bed."}, {"word": "year", "gloss": "해 (년)", "defn": "A year is the time it takes the Earth to travel around the sun, about 365 days.", "example": "This calendar shows all twelve months of the year."}, {"word": "yellow", "gloss": "노란", "defn": "Yellow is the color of a ripe banana or the sun.", "example": "This banana is bright yellow."}, {"word": "yesterday", "gloss": "어제", "defn": "Yesterday is the day before today.", "example": "This boy remembers that yesterday was sunny."}, {"word": "yoghurt", "gloss": "요구르트", "defn": "Yoghurt is a thick, creamy food made from milk.", "example": "This yoghurt is being scooped with a spoon."}, {"word": "zebra", "gloss": "얼룩말", "defn": "A zebra is an animal similar to a horse, with black and white stripes.", "example": "This zebra is grazing on the grass."}, {"word": "zero", "gloss": "0 (영)", "defn": "Zero is the number that means nothing or none.", "example": "This plate is empty, showing zero cookies left."}, {"word": "zip", "gloss": "지퍼를 잠그다", "defn": "To zip means to close something using a zipper.", "example": "This girl is zipping up her jacket."}, {"word": "zoo", "gloss": "동물원", "defn": "A zoo is a place where wild animals are kept for people to see.", "example": "This zoo has lions, elephants, and monkeys."}, {"word": "zookeeper", "gloss": "사육사", "defn": "A zookeeper is a person whose job is to take care of animals in a zoo.", "example": "This zookeeper is feeding the elephants."}];
+const ACTIVE_SIZE = 5;
+const TIME_LIMIT = 60;
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function MatchingGame() {
+  const [media, setMedia] = useState({});
+  const [phase, setPhase] = useState("loading"); // loading | playing | result
+  const [game, setGame] = useState({ active: [], queue: [] });
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [selectedWord, setSelectedWord] = useState(null);
+  const [wrongFlash, setWrongFlash] = useState({ img: null, word: null });
+  const [score, setScore] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(TIME_LIMIT);
+  const timerRef = useRef(null);
+
+  const active = game.active;
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const keysRes = await window.storage.list("media:", false);
+        if (keysRes && keysRes.keys) {
+          const obj = {};
+          for (const k of keysRes.keys) {
+            try {
+              const r = await window.storage.get(k, false);
+              if (r && r.value) obj[k.replace("media:", "")] = JSON.parse(r.value);
+            } catch (e) {}
+          }
+          setMedia(obj);
+        }
+      } catch (e) {}
+      startGame();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const startGame = useCallback(() => {
+    const pool = shuffle(SAMPLE_WORDS);
+    setGame({ active: pool.slice(0, ACTIVE_SIZE), queue: pool.slice(ACTIVE_SIZE) });
+    setScore(0);
+    setTimeLeft(TIME_LIMIT);
+    setSelectedImage(null);
+    setSelectedWord(null);
+    setPhase("playing");
+  }, []);
+
+  // 타이머
+  useEffect(() => {
+    if (phase !== "playing") return;
+    clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      setTimeLeft((t) => {
+        if (t <= 1) {
+          clearInterval(timerRef.current);
+          setPhase("result");
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timerRef.current);
+  }, [phase]);
+
+  const imageOrder = useMemo(() => shuffle(active), [active]);
+  const wordOrder = useMemo(() => shuffle(active), [active]);
+
+  // 하나를 맞추면 그 자리를 새 단어로 리필 (active/queue를 하나의 state로 묶어서 원자적으로 업데이트)
+  const refillOne = useCallback((removedWord) => {
+    setGame((prev) => {
+      const filteredActive = prev.active.filter((w) => w.word !== removedWord);
+      let queue = prev.queue;
+      let next = queue[0];
+      let restQueue = queue.slice(1);
+      if (!next) {
+        const activeWords = new Set(filteredActive.map((w) => w.word));
+        const refreshed = shuffle(SAMPLE_WORDS.filter((w) => !activeWords.has(w.word)));
+        next = refreshed[0];
+        restQueue = refreshed.slice(1);
+      }
+      return { active: next ? [...filteredActive, next] : filteredActive, queue: restQueue };
+    });
+  }, []);
+
+  const handleImageClick = (w) => {
+    if (phase !== "playing") return;
+    setSelectedImage(w.word);
+    tryMatch(w.word, selectedWord);
+  };
+  const handleWordClick = (w) => {
+    if (phase !== "playing") return;
+    setSelectedWord(w.word);
+    tryMatch(selectedImage, w.word);
+  };
+
+  const tryMatch = (imgWord, wordWord) => {
+    if (!imgWord || !wordWord) return;
+    if (imgWord === wordWord) {
+      setScore((s) => s + 1);
+      setTimeout(() => {
+        refillOne(imgWord);
+        setSelectedImage(null);
+        setSelectedWord(null);
+      }, 180);
+    } else {
+      setWrongFlash({ img: imgWord, word: wordWord });
+      setTimeout(() => {
+        setWrongFlash({ img: null, word: null });
+        setSelectedImage(null);
+        setSelectedWord(null);
+      }, 450);
+    }
+  };
+
+  if (phase === "loading") {
+    return (
+      <div className="w-full h-screen flex items-center justify-center" style={{ background: "#0F1B2D" }}>
+        <p className="text-white text-sm">불러오는 중...</p>
+      </div>
+    );
+  }
+
+  if (phase === "result") {
+    return (
+      <div className="w-full h-screen flex flex-col items-center justify-center gap-5 px-6" style={{ background: "#0F1B2D" }}>
+        <Trophy size={48} style={{ color: "#D9A441" }} />
+        <h1 className="text-white font-serif text-2xl font-bold">결과</h1>
+        <p className="text-5xl font-extrabold" style={{ color: "#8FD19E" }}>{score}찐 짝지음</p>
+        <p className="text-sm" style={{ color: "#B7C6DA" }}>60초 동안 {score}개의 단어를 맞추셨어요</p>
+        <button onClick={startGame} className="flex items-center gap-2 mt-4 px-6 py-3 rounded-full font-medium text-sm" style={{ background: "#D9A441", color: "#1E3A5F" }}>
+          <RotateCcw size={16} /> 다시 하기
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="w-full h-screen flex flex-col" style={{ background: "#FBF7EF" }}>
+      <div className="flex items-center justify-between px-5 py-4" style={{ background: "#1E3A5F" }}>
+        <div className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: "#D9A441" }}>
+          <Home size={17} style={{ color: "#1E3A5F" }} />
+        </div>
+        <h1 className="text-white font-serif text-base font-bold">Matching Game</h1>
+        <div className="flex items-center gap-3">
+          <span className="text-white text-sm font-mono">{score}점</span>
+          <span
+            className="flex items-center gap-1 text-sm font-mono px-2 py-1 rounded-full"
+            style={{ background: timeLeft <= 10 ? "#C4593F" : "#28405C", color: "white" }}
+          >
+            <Timer size={13} /> {timeLeft}s
+          </span>
+        </div>
+      </div>
+
+      <div className="flex-1 flex items-center justify-center px-6 py-4">
+        <div className="grid grid-cols-2 gap-8 w-full max-w-3xl">
+          {/* 이미지 열 */}
+          <div className="flex flex-col gap-3">
+            {imageOrder.map((w) => {
+              const m = media[w.word] || {};
+              const isSelected = selectedImage === w.word;
+              const isWrong = wrongFlash.img === w.word;
+              return (
+                <button
+                  key={"img-" + w.word}
+                  onClick={() => handleImageClick(w)}
+                  className="flex items-center gap-3 p-2 rounded-xl border-2 transition"
+                  style={{
+                    borderColor: isWrong ? "#E2A093" : isSelected ? "#D9A441" : "#EAE2CE",
+                    background: isWrong ? "#FBEAE6" : isSelected ? "#FCF3DF" : "white",
+                  }}
+                >
+                  <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0" style={{ background: "#F3EEE0" }}>
+                    {m.image ? (
+                      <div className="w-full h-full" style={{ backgroundImage: "url(" + m.image + ")", backgroundSize: "400% 100%", backgroundPosition: "0% 0" }} />
+                    ) : null}
+                  </div>
+                  <span className="text-xs" style={{ color: "#9C8F70" }}>{w.gloss}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* 단어 열 */}
+          <div className="flex flex-col gap-3">
+            {wordOrder.map((w) => {
+              const isSelected = selectedWord === w.word;
+              const isWrong = wrongFlash.word === w.word;
+              return (
+                <button
+                  key={"word-" + w.word}
+                  onClick={() => handleWordClick(w)}
+                  className="py-4 px-4 rounded-xl border-2 font-serif text-lg font-semibold transition text-center"
+                  style={{
+                    borderColor: isWrong ? "#E2A093" : isSelected ? "#D9A441" : "#EAE2CE",
+                    background: isWrong ? "#FBEAE6" : isSelected ? "#FCF3DF" : "white",
+                    color: "#1E3A5F",
+                  }}
+                >
+                  {w.word}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<MatchingGame />);
+</script>
+</body>
+</html>
