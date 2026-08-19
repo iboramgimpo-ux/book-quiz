@@ -374,12 +374,32 @@ function StudentApp() {
   const [settingsTab, setSettingsTab] = useState("log"); // log | setting
   const [dailyGoal, setDailyGoal] = useState(30);
   const [media, setMedia] = useState({});
+  const [studentInfo, setStudentInfo] = useState(null); // {id, name, ...} or null(guest)
   const historyDepth = useRef(0);
+
+  const studentId = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get("student") || null;
+  }, []);
+  const goalKey = studentId ? "daily-goal:" + studentId : "daily-goal";
 
   const letters = useMemo(() => {
     const set = new Set(SAMPLE_WORDS.map((w) => w.word[0].toUpperCase()));
     return "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter((l) => set.has(l));
   }, []);
+
+  // ---------- 학생 정보 불러오기 (링크에 ?student=아이디 가 있을 때) ----------
+  useEffect(() => {
+    if (!studentId) return;
+    (async () => {
+      try {
+        const doc = await db.collection("students").doc(studentId).get();
+        if (doc.exists) setStudentInfo({ id: studentId, ...doc.data() });
+      } catch (e) {
+        console.error("학생 정보 불러오기 실패:", e);
+      }
+    })();
+  }, [studentId]);
 
   // ---------- 미디어 + 설정 불러오기 ----------
   useEffect(() => {
@@ -398,10 +418,11 @@ function StudentApp() {
         }
       } catch (e) {}
       try {
-        const g = await window.storage.get("daily-goal", false);
+        const g = await window.storage.get(goalKey, false);
         if (g && g.value) setDailyGoal(JSON.parse(g.value));
       } catch (e) {}
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---------- 뒤로가기(popstate) 처리 ----------
@@ -438,12 +459,12 @@ function StudentApp() {
 
   const saveDailyGoal = async (val) => {
     setDailyGoal(val);
-    try { await window.storage.set("daily-goal", JSON.stringify(val), false); } catch (e) {}
+    try { await window.storage.set(goalKey, JSON.stringify(val), false); } catch (e) {}
   };
 
   return (
     <div className="w-full h-screen overflow-hidden" style={{ background: "#0F1B2D" }}>
-      {screen === "home" && <HomeScreen onNavigate={navigate} />}
+      {screen === "home" && <HomeScreen onNavigate={navigate} studentInfo={studentInfo} />}
       {screen === "dictionary" && (
         <DictionaryScreen
           letter={dictLetter}
@@ -465,6 +486,7 @@ function StudentApp() {
           onHome={goHome}
           dailyGoal={dailyGoal}
           setDailyGoal={saveDailyGoal}
+          studentInfo={studentInfo}
         />
       )}
     </div>
@@ -472,9 +494,14 @@ function StudentApp() {
 }
 
 // ============ 홈 화면 ============
-function HomeScreen({ onNavigate }) {
+function HomeScreen({ onNavigate, studentInfo }) {
   return (
     <div className="w-full h-full flex flex-col items-center justify-center px-6" style={{ background: "linear-gradient(180deg, #16283F 0%, #0F1B2D 100%)" }}>
+      {studentInfo && (
+        <p className="text-sm mb-3" style={{ color: "#B7C6DA" }}>
+          안녕, <b style={{ color: "#D9A441" }}>{studentInfo.name}</b>!
+        </p>
+      )}
       {/* 리본/책 로고 */}
       <div className="relative mb-14">
         <div
@@ -738,7 +765,7 @@ function GameMenuScreen({ onHome }) {
 }
 
 // ============ 설정 화면 ============
-function SettingsScreen({ tab, setTab, onHome, dailyGoal, setDailyGoal }) {
+function SettingsScreen({ tab, setTab, onHome, dailyGoal, setDailyGoal, studentInfo }) {
   return (
     <div className="w-full h-full flex flex-col" style={{ background: "#FBF7EF" }}>
       <div className="flex items-center justify-between px-5 py-4" style={{ background: "#1E3A5F" }}>
@@ -755,7 +782,7 @@ function SettingsScreen({ tab, setTab, onHome, dailyGoal, setDailyGoal }) {
       </div>
 
       <div className="flex-1 overflow-y-auto p-5">
-        {tab === "log" ? <LearningLogPanel /> : <SettingPanel dailyGoal={dailyGoal} setDailyGoal={setDailyGoal} />}
+        {tab === "log" ? <LearningLogPanel studentInfo={studentInfo} /> : <SettingPanel dailyGoal={dailyGoal} setDailyGoal={setDailyGoal} />}
       </div>
     </div>
   );
@@ -773,15 +800,16 @@ function TabButton({ active, onClick, label }) {
   );
 }
 
-function LearningLogPanel() {
-  // 실제로는 Firestore에서 학생별 진행상황을 불러옵니다. 지금은 데모 값.
-  const demo = { name: "민준", cycle: 4, cyclePercent: 62, lastTry: "2026-08-16" };
+function LearningLogPanel({ studentInfo }) {
+  // TODO: Cycles/Current cycle/Last try는 실제 학습 기록(진행 로그)을 집계해서
+  // 채워야 합니다. 지금은 이름만 실제 값이고 나머지는 자리표시(placeholder)예요.
+  const name = studentInfo ? studentInfo.name : "(학생 링크로 접속하면 이름이 표시돼요)";
   return (
     <div className="max-w-md space-y-3">
-      <LogRow icon={<User size={16} />} label="Name" value={demo.name} />
-      <LogRow icon={<TrendingUp size={16} />} label="Cycles" value={demo.cycle + " 바퀴째"} />
-      <LogRow icon={<TrendingUp size={16} />} label="Current cycle" value={demo.cyclePercent + "%"} progress={demo.cyclePercent} />
-      <LogRow icon={<Calendar size={16} />} label="Last try" value={demo.lastTry} />
+      <LogRow icon={<User size={16} />} label="Name" value={name} />
+      <LogRow icon={<TrendingUp size={16} />} label="Cycles" value="-" />
+      <LogRow icon={<TrendingUp size={16} />} label="Current cycle" value="-" />
+      <LogRow icon={<Calendar size={16} />} label="Last try" value="-" />
     </div>
   );
 }

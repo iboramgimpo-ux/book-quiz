@@ -377,6 +377,7 @@ function AdminUploadTool() {
   const [showAddForm, setShowAddForm] = useState(false);
   const [newWordForm, setNewWordForm] = useState({ word: "", gloss: "", defn: "", example: "" });
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [mainTab, setMainTab] = useState("words"); // words | students
 
   const words = useMemo(() => {
     const deletedSet = new Set(deletedWords);
@@ -580,6 +581,27 @@ function AdminUploadTool() {
         </div>
       </header>
 
+      <div className="max-w-6xl mx-auto px-5 pt-4 flex gap-2">
+        <button
+          onClick={() => setMainTab("words")}
+          className="px-4 py-2 rounded-t-lg text-sm font-semibold border-b-2 transition"
+          style={{ color: mainTab === "words" ? "#1E3A5F" : "#8A7F68", borderColor: mainTab === "words" ? "#D9A441" : "transparent", background: mainTab === "words" ? "white" : "transparent" }}
+        >
+          단어 관리
+        </button>
+        <button
+          onClick={() => setMainTab("students")}
+          className="px-4 py-2 rounded-t-lg text-sm font-semibold border-b-2 transition"
+          style={{ color: mainTab === "students" ? "#1E3A5F" : "#8A7F68", borderColor: mainTab === "students" ? "#D9A441" : "transparent", background: mainTab === "students" ? "white" : "transparent" }}
+        >
+          학생 링크
+        </button>
+      </div>
+
+      {mainTab === "students" && <StudentLinksPanel />}
+
+      {mainTab === "words" && (
+      <>
       <div className="sm:hidden px-5 py-2 text-xs flex gap-4" style={{ color: "#5B6B7F" }}>
         <span>그림 {stats.img}/{stats.total}</span>
         <span>풀이음성 {stats.aud}/{stats.total}</span>
@@ -818,6 +840,105 @@ function AdminUploadTool() {
           </div>
         </div>
       )}
+      </>
+      )}
+    </div>
+  );
+}
+
+function StudentLinksPanel() {
+  const [students, setStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [copiedId, setCopiedId] = useState(null);
+  const [search, setSearch] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await db.collection("students").where("active", "==", true).get();
+        const list = [];
+        snap.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
+        list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+        setStudents(list);
+      } catch (e) {
+        console.error("학생 목록 불러오기 실패:", e);
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  const studentAppUrl = (id) => {
+    // admin.html과 같은 폴더의 student-app.html을 가리킵니다.
+    const base = location.origin + location.pathname.replace(/admin\.html$/, "");
+    return base + "student-app.html?student=" + id;
+  };
+
+  const copyLink = (id) => {
+    const url = studentAppUrl(id);
+    navigator.clipboard?.writeText(url).then(
+      () => {
+        setCopiedId(id);
+        setTimeout(() => setCopiedId(null), 1500);
+      },
+      () => {
+        prompt("아래 링크를 복사하세요:", url);
+      }
+    );
+  };
+
+  const filtered = students.filter((s) =>
+    (s.name || "").toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="max-w-3xl mx-auto px-5 py-5">
+      <div className="relative mb-4">
+        <Search size={17} className="absolute top-1/2 -translate-y-1/2" style={{ left: 12, color: "#9CA8B8" }} />
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="학생 이름 검색..."
+          className="w-full pl-10 pr-4 py-2.5 rounded-xl border text-sm outline-none"
+          style={{ borderColor: "#E4DCC9", background: "#FFFFFF" }}
+        />
+      </div>
+
+      {loading ? (
+        <p className="text-sm text-center py-10" style={{ color: "#9CA8B8" }}>불러오는 중...</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-sm text-center py-10" style={{ color: "#9CA8B8" }}>
+          등록된 학생이 없어요. (기존 사이트에서 먼저 학생을 등록해주세요)
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {filtered.map((s) => (
+            <div
+              key={s.id}
+              className="flex items-center justify-between gap-3 rounded-xl bg-white border p-3.5"
+              style={{ borderColor: "#EAE2CE" }}
+            >
+              <div className="min-w-0">
+                <p className="font-serif text-base font-semibold truncate" style={{ color: "#1E3A5F" }}>
+                  {s.name || "(이름 없음)"}
+                </p>
+                <p className="text-xs truncate" style={{ color: "#9C8F70" }}>
+                  {s.grade ? s.grade + " · " : ""}{s.school || ""}
+                </p>
+              </div>
+              <button
+                onClick={() => copyLink(s.id)}
+                className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition"
+                style={{
+                  background: copiedId === s.id ? "#E7F3E9" : "#1E3A5F",
+                  color: copiedId === s.id ? "#2E6B3E" : "white",
+                }}
+              >
+                {copiedId === s.id ? (<><Check size={13} /> 복사됨</>) : "링크 복사"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -873,6 +994,7 @@ function UploadBox({ accept, onFile, hasFile }) {
       }}
       className="border-2 border-dashed rounded-xl py-4 flex flex-col items-center justify-center gap-1 cursor-pointer transition block"
       style={{
+        position: "relative",
         borderColor: dragOver ? "#D9A441" : hasFile ? "#B7D6BE" : "#E4DCC9",
         background: dragOver ? "#FBF3E0" : hasFile ? "#F3F9F4" : "#FBF9F3",
       }}
@@ -885,7 +1007,13 @@ function UploadBox({ accept, onFile, hasFile }) {
         id={inputId}
         type="file"
         accept={accept}
-        style={{ position: "absolute", width: 1, height: 1, opacity: 0, pointerEvents: "none" }}
+        style={{
+          position: "absolute",
+          top: 0, left: 0, right: 0, bottom: 0,
+          width: "100%", height: "100%",
+          opacity: 0,
+          cursor: "pointer",
+        }}
         onChange={(e) => {
           const f = e.target.files && e.target.files[0];
           if (f) onFile(f);
