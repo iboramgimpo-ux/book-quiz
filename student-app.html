@@ -10,6 +10,25 @@
 <style>
   html, body { margin:0; padding:0; height:100%; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
   #root { height:100%; }
+  .app-height { height: 100vh; height: 100dvh; }
+
+  /* 기기가 세로로 잠겨있어도 화면을 강제로 가로처럼 보이게 회전 */
+  .force-landscape {
+    position: fixed;
+    top: 50%; left: 50%;
+    width: 100vh; width: 100dvh;
+    height: 100vw;
+    transform: translate(-50%, -50%) rotate(90deg);
+    transform-origin: center center;
+  }
+</style>
+<script>
+  // 모바일 주소창 자동 숨김 유도 (스크롤 넛지)
+  window.addEventListener('load', function () {
+    setTimeout(function () { window.scrollTo(0, 1); }, 100);
+  });
+</script>
+<style>
 .-bottom-5{bottom:-1.25rem;}
 .-left-3{left:-0.75rem;}
 .-right-3{right:-0.75rem;}
@@ -400,6 +419,9 @@ function CheckCircle2({size=18,color="currentColor"}){return(<svg width={size} h
 function User({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>);}
 function Calendar({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>);}
 function TrendingUp({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>);}
+function Trophy({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 21h8"/><path d="M12 17v4"/><path d="M7 4h10v5a5 5 0 0 1-10 0z"/><path d="M17 5h3a2 2 0 0 1-2 4h-1"/><path d="M7 5H4a2 2 0 0 0 2 4h1"/></svg>);}
+function Check({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>);}
+function X({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>);}
 
 
 // ---------- 샘플 단어 (실제로는 1200개 전체 + Firebase에서 불러옵니다) ----------
@@ -410,29 +432,38 @@ const DAILY_OPTIONS = [10, 20, 30, 40, 50, 60];
 
 // ============ 앱 쉘 (화면 전환 + 뒤로가기 관리) ============
 function StudentApp() {
-  const [screen, setScreen] = useState("home"); // home | dictionary | game | settings | study
+  const [screen, setScreen] = useState("home"); // home | dictionary | game | settings | study | quiz
   const [dictLetter, setDictLetter] = useState("A");
   const [studyWord, setStudyWord] = useState(null);
   const [settingsTab, setSettingsTab] = useState("log"); // log | setting
   const [dailyGoal, setDailyGoal] = useState(30);
   const [media, setMedia] = useState({});
   const [studentInfo, setStudentInfo] = useState(null); // {id, name, ...} or null(guest)
+  const [todayWords, setTodayWords] = useState([]); // 오늘 완료한 단어 목록
+  const [showGoalModal, setShowGoalModal] = useState(false);
   const historyDepth = useRef(0);
 
   const studentId = useMemo(() => {
     const params = new URLSearchParams(location.search);
-    return params.get("student") || null;
+    return params.get("student") || "guest";
   }, []);
-  const goalKey = studentId ? "daily-goal:" + studentId : "daily-goal";
+  const goalKey = "daily-goal:" + studentId;
+  const progressKey = "today-progress:" + studentId;
 
+  const sortedWords = useMemo(
+    () => [...SAMPLE_WORDS].sort((a, b) => a.word.localeCompare(b.word)),
+    []
+  );
   const letters = useMemo(() => {
     const set = new Set(SAMPLE_WORDS.map((w) => w.word[0].toUpperCase()));
     return "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter((l) => set.has(l));
   }, []);
 
-  // ---------- 학생 정보 불러오기 (링크에 ?student=아이디 가 있을 때) ----------
+  const todayStr = () => new Date().toISOString().slice(0, 10);
+
+  // ---------- 학생 정보 불러오기 ----------
   useEffect(() => {
-    if (!studentId) return;
+    if (studentId === "guest") return;
     (async () => {
       try {
         const doc = await db.collection("students").doc(studentId).get();
@@ -443,7 +474,7 @@ function StudentApp() {
     })();
   }, [studentId]);
 
-  // ---------- 미디어 + 설정 불러오기 ----------
+  // ---------- 미디어 + 설정 + 오늘 진행상황 불러오기 ----------
   useEffect(() => {
     (async () => {
       try {
@@ -463,6 +494,13 @@ function StudentApp() {
         const g = await window.storage.get(goalKey, false);
         if (g && g.value) setDailyGoal(JSON.parse(g.value));
       } catch (e) {}
+      try {
+        const p = await window.storage.get(progressKey, false);
+        if (p && p.value) {
+          const parsed = JSON.parse(p.value);
+          if (parsed.date === todayStr()) setTodayWords(parsed.words || []);
+        }
+      } catch (e) {}
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -470,7 +508,10 @@ function StudentApp() {
   // ---------- 뒤로가기(popstate) 처리 ----------
   const navigate = useCallback((next, extra) => {
     historyDepth.current += 1;
-    window.history.pushState({ depth: historyDepth.current, screen: next }, "");
+    const state = { depth: historyDepth.current, screen: next };
+    if (next === "study") state.wordData = extra;
+    if (next === "dictionary" && extra) state.letter = extra;
+    window.history.pushState(state, "");
     setScreen(next);
     if (next === "study") setStudyWord(extra);
     if (next === "dictionary" && extra) setDictLetter(extra);
@@ -491,8 +532,14 @@ function StudentApp() {
         return;
       }
       historyDepth.current -= 1;
-      setScreen(st.screen === "study" ? "dictionary" : (st.screen || "home"));
-      if (st.screen !== "study") setStudyWord(null);
+      if (st.screen === "study" && st.wordData) {
+        setScreen("study");
+        setStudyWord(st.wordData);
+      } else {
+        setScreen(st.screen || "home");
+        setStudyWord(null);
+        if (st.screen === "dictionary" && st.letter) setDictLetter(st.letter);
+      }
     };
     window.addEventListener("popstate", onPop);
     window.history.replaceState({ depth: 0, screen: "home" }, "");
@@ -504,9 +551,39 @@ function StudentApp() {
     try { await window.storage.set(goalKey, JSON.stringify(val), false); } catch (e) {}
   };
 
+  // 단어 학습을 처음 완료했을 때 호출됨 (오늘 진행상황에 기록)
+  const recordWordComplete = useCallback(async (word) => {
+    setTodayWords((prev) => {
+      if (prev.includes(word)) return prev; // 오늘 이미 학습한 단어는 중복 카운트 안 함
+      const next = [...prev, word];
+      window.storage.set(progressKey, JSON.stringify({ date: todayStr(), words: next }), false).catch(() => {});
+      if (next.length === dailyGoal) {
+        setTimeout(() => setShowGoalModal(true), 600);
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dailyGoal, progressKey]);
+
+  const nextWordAfter = useCallback((current) => {
+    if (!current) return null;
+    const idx = sortedWords.findIndex((w) => w.word === current.word);
+    if (idx === -1 || idx >= sortedWords.length - 1) return null;
+    return sortedWords[idx + 1];
+  }, [sortedWords]);
+
+  const goToWord = useCallback((w) => navigate("study", w), [navigate]);
+
   return (
-    <div className="w-full h-screen overflow-hidden" style={{ background: "#0F1B2D" }}>
-      {screen === "home" && <HomeScreen onNavigate={navigate} studentInfo={studentInfo} />}
+    <div className="w-full app-height overflow-hidden" style={{ background: "#0F1B2D" }}>
+      {screen === "home" && (
+        <HomeScreen
+          onNavigate={navigate}
+          studentInfo={studentInfo}
+          todayCount={todayWords.length}
+          dailyGoal={dailyGoal}
+        />
+      )}
       {screen === "dictionary" && (
         <DictionaryScreen
           letter={dictLetter}
@@ -518,9 +595,28 @@ function StudentApp() {
         />
       )}
       {screen === "study" && studyWord && (
-        <StudyScreen word={studyWord} media={media} onHome={goHome} onBackToDict={() => window.history.back()} />
+        <StudyScreen
+          word={studyWord}
+          media={media}
+          allWords={sortedWords}
+          onHome={goHome}
+          onBackToDict={() => window.history.back()}
+          onWordComplete={recordWordComplete}
+          onJumpToWord={goToWord}
+          hasNext={!!nextWordAfter(studyWord)}
+          onNext={() => { const nw = nextWordAfter(studyWord); if (nw) goToWord(nw); }}
+        />
       )}
       {screen === "game" && <GameMenuScreen onHome={goHome} />}
+      {screen === "quiz" && (
+        <QuizScreen
+          words={todayWords.map((w) => sortedWords.find((sw) => sw.word === w)).filter(Boolean)}
+          allWords={sortedWords}
+          media={media}
+          onHome={goHome}
+          onFinish={goHome}
+        />
+      )}
       {screen === "settings" && (
         <SettingsScreen
           tab={settingsTab}
@@ -531,9 +627,36 @@ function StudentApp() {
           studentInfo={studentInfo}
         />
       )}
+
+      {showGoalModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center px-6" style={{ background: "rgba(15,27,45,0.85)" }}>
+          <div className="w-full max-w-xs rounded-2xl p-6 text-center" style={{ background: "#FBF7EF" }}>
+            <Trophy size={40} style={{ color: "#D9A441", margin: "0 auto 12px" }} />
+            <h2 className="font-serif text-xl font-bold mb-1" style={{ color: "#1E3A5F" }}>학습완료!</h2>
+            <p className="text-sm mb-5" style={{ color: "#8A7F68" }}>
+              오늘 목표 {dailyGoal}단어를 다 배웠어요.<br />퀴즈로 복습해볼까요?
+            </p>
+            <button
+              onClick={() => { setShowGoalModal(false); navigate("quiz"); }}
+              className="w-full py-3 rounded-xl font-semibold text-sm"
+              style={{ background: "#D9A441", color: "#1E3A5F" }}
+            >
+              퀴즈풀기 Start!
+            </button>
+            <button
+              onClick={() => setShowGoalModal(false)}
+              className="w-full py-2 mt-2 text-xs"
+              style={{ color: "#9C8F70" }}
+            >
+              나중에 할게요
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
 
 // ============ 홈 화면 ============
 function HomeScreen({ onNavigate, studentInfo }) {
@@ -648,30 +771,95 @@ function DictionaryScreen({ letter, setLetter, letters, onHome, onOpenWord, medi
 }
 
 // ============ 단어 학습(스터디) 화면 ============
-function StudyScreen({ word, media, onHome, onBackToDict }) {
+// TTS 엔진을 미리 "깨워서" 첫 문장이 잘려나오는 문제를 방지
+let ttsPrimed = false;
+function primeTts() {
+  if (ttsPrimed) return;
+  ttsPrimed = true;
+  try {
+    const u = new SpeechSynthesisUtterance(" ");
+    u.volume = 0;
+    window.speechSynthesis.speak(u);
+  } catch (e) {}
+}
+
+function buildWordLookup(allWords) {
+  const map = {};
+  allWords.forEach((w) => {
+    const base = w.word.split("/")[0].split(" / ")[0].trim().toLowerCase();
+    if (base && !base.includes(" ")) map[base] = w;
+  });
+  return map;
+}
+
+// 정의/예문 텍스트를 단어 단위로 쪼개서, 1200단어 목록에 있는 단어는
+// 빨간색 클릭 가능한 span으로 바꿔줍니다.
+function LinkedText({ text, lookup, currentWord, onWordTap }) {
+  const parts = text.split(/(\b[a-zA-Z']+\b)/g);
+  return (
+    <>
+      {parts.map((part, i) => {
+        const key = part.toLowerCase();
+        const match = lookup[key];
+        if (match && match.word.toLowerCase() !== currentWord.toLowerCase()) {
+          return (
+            <span
+              key={i}
+              onClick={(e) => { e.stopPropagation(); onWordTap(match, e); }}
+              style={{ color: "#C0392B", fontWeight: 600, cursor: "pointer", textDecoration: "underline", textDecorationStyle: "dotted" }}
+            >
+              {part}
+            </span>
+          );
+        }
+        return <React.Fragment key={i}>{part}</React.Fragment>;
+      })}
+    </>
+  );
+}
+
+function StudyScreen({ word, media, allWords, onHome, onBackToDict, onWordComplete, onJumpToWord, hasNext, onNext }) {
   const [stage, setStage] = useState("word");
   const [animPlaying, setAnimPlaying] = useState(false);
+  const [animLoop, setAnimLoop] = useState(0); // 0 또는 1 (2회 반복재생)
   const [everCompleted, setEverCompleted] = useState(false);
+  const [portraitToast, setPortraitToast] = useState(false);
   const [isPortrait, setIsPortrait] = useState(false);
+  const [popup, setPopup] = useState(null); // { word, x, y }
   const audioRef = useRef(null);
   const timerRef = useRef(null);
+  const toastTimerRef = useRef(null);
   const m = media[word.word] || {};
   const duration = m.duration || DEFAULT_DURATION;
+  const lookup = useMemo(() => buildWordLookup(allWords), [allWords]);
 
+  // ---------- 가로/세로 감지: 세로여도 화면은 강제로 가로처럼 보이게 함 ----------
   useEffect(() => {
-    const check = () => setIsPortrait(window.innerHeight > window.innerWidth);
+    primeTts();
+    const check = () => {
+      const portrait = window.innerHeight > window.innerWidth;
+      setIsPortrait(portrait);
+      if (portrait) {
+        setPortraitToast(true);
+        clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = setTimeout(() => setPortraitToast(false), 1800);
+      }
+    };
     check();
     window.addEventListener("resize", check);
     try { screen.orientation && screen.orientation.lock && screen.orientation.lock("landscape").catch(() => {}); } catch (e) {}
-    return () => window.removeEventListener("resize", check);
+    // 모바일 주소창 자동 숨김을 위한 살짝 스크롤
+    setTimeout(() => window.scrollTo(0, 1), 50);
+    return () => { window.removeEventListener("resize", check); clearTimeout(toastTimerRef.current); };
   }, []);
 
   const speak = useCallback((text, onend) => {
     try {
       window.speechSynthesis.cancel();
       const u = new SpeechSynthesisUtterance(text);
-      u.lang = "en-US"; u.rate = 0.95; u.onend = onend; u.onerror = onend;
-      window.speechSynthesis.speak(u);
+      u.lang = "en-US"; u.rate = 0.72; u.onend = onend; u.onerror = onend;
+      // 엔진이 준비될 시간을 살짝 준 뒤 재생 (첫 음절 잘림 방지)
+      setTimeout(() => window.speechSynthesis.speak(u), 120);
     } catch (e) { onend && onend(); }
   }, []);
 
@@ -697,42 +885,69 @@ function StudyScreen({ word, media, onHome, onBackToDict }) {
     stopAll();
     clearTimeout(timerRef.current);
     setAnimPlaying(false);
+    setAnimLoop(0);
     setEverCompleted(false);
+    setPopup(null);
     setStage("word");
     playAudioOrTts(m.wordAudio, word.word, () => setStage("animation"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [word.word]);
 
+  // 애니메이션을 2회 반복 재생
   useEffect(() => {
-    if (stage === "animation") {
-      requestAnimationFrame(() => {
-        setAnimPlaying(true);
-        clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => setStage("definition"), duration * 1000);
-      });
-    } else if (stage === "definition") {
+    if (stage !== "animation") return;
+    setAnimPlaying(false);
+    requestAnimationFrame(() => {
+      setAnimPlaying(true);
+      clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        if (animLoop === 0) {
+          setAnimLoop(1); // 이 useEffect가 다시 실행되며 2번째 루프 재생
+        } else {
+          setStage("definition");
+        }
+      }, duration * 1000);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage, animLoop]);
+
+  useEffect(() => {
+    if (stage === "definition") {
       playAudioOrTts(m.definitionAudio, word.defn + " " + word.example, () => setStage("done"));
     } else if (stage === "done") {
       setEverCompleted(true);
+      onWordComplete && onWordComplete(word.word);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage]);
 
   const tapWord = () => playAudioOrTts(m.wordAudio, word.word, () => {});
-  const tapImage = () => { setAnimPlaying(false); requestAnimationFrame(() => setAnimPlaying(true)); };
+  const tapImage = () => {
+    setAnimPlaying(false);
+    requestAnimationFrame(() => setAnimPlaying(true));
+  };
   const tapDef = () => playAudioOrTts(m.definitionAudio, word.defn + " " + word.example, () => {});
 
+  const handleLinkedWordTap = (matchWord, e) => {
+    const linkedMedia = media[matchWord.word] || {};
+    // 발음 재생
+    try { window.speechSynthesis.cancel(); } catch (err) {}
+    const u = new SpeechSynthesisUtterance(matchWord.word);
+    u.lang = "en-US"; u.rate = 0.75;
+    window.speechSynthesis.speak(u);
+    setPopup({ word: matchWord, image: linkedMedia.image });
+  };
+
   return (
-    <div className="w-full h-full relative" style={{ background: "#0F1B2D" }}>
-      {isPortrait && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-4 text-white" style={{ background: "#0F1B2D" }}>
-          <RotateCw size={40} className="animate-spin" style={{ animationDuration: "2.2s" }} />
-          <p className="text-lg font-medium">기기를 가로로 돌려주세요</p>
+    <div className={"w-full h-full relative" + (isPortrait ? " force-landscape" : "")} style={{ background: "#0F1B2D" }}>
+      {portraitToast && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full text-white text-xs" style={{ background: "rgba(0,0,0,0.75)" }}>
+          <RotateCw size={13} /> 가로 화면에 최적화되어 있어요
         </div>
       )}
       <div className="w-full h-full flex" style={{ background: "#FBF7EF" }}>
         <div className="w-1/2 h-full flex flex-col justify-center px-10 lg:px-16">
-          <button onClick={onHome} className="absolute top-4 left-4 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "#1E3A5F" }}>
+          <button onClick={onHome} className="absolute top-4 left-4 w-8 h-8 rounded-full flex items-center justify-center z-10" style={{ background: "#1E3A5F" }}>
             <Home size={14} className="text-white" />
           </button>
           <button onClick={tapWord} className="text-left group">
@@ -743,10 +958,14 @@ function StudyScreen({ word, media, onHome, onBackToDict }) {
               <Volume2 size={13} /> 탭해서 다시 듣기
             </div>
           </button>
-          <button onClick={tapDef} className="text-left mt-6">
-            <p style={{ fontSize: "clamp(0.95rem, 1.6vw, 1.15rem)", color: "#374151" }}>{word.defn}</p>
-            <p className="italic mt-2" style={{ fontSize: "clamp(0.95rem, 1.6vw, 1.15rem)", color: "#6B7280" }}>{word.example}</p>
-          </button>
+          <div className="text-left mt-6" onClick={tapDef} style={{ cursor: "pointer" }}>
+            <p style={{ fontSize: "clamp(0.95rem, 1.6vw, 1.15rem)", color: "#374151" }}>
+              <LinkedText text={word.defn} lookup={lookup} currentWord={word.word} onWordTap={handleLinkedWordTap} />
+            </p>
+            <p className="italic mt-2" style={{ fontSize: "clamp(0.95rem, 1.6vw, 1.15rem)", color: "#6B7280" }}>
+              <LinkedText text={word.example} lookup={lookup} currentWord={word.word} onWordTap={handleLinkedWordTap} />
+            </p>
+          </div>
         </div>
         <div className="w-1/2 h-full flex items-center justify-center p-8">
           <button onClick={tapImage} className="relative rounded-2xl overflow-hidden shadow-lg" style={{ width: "min(70vh, 46vw)", height: "min(70vh, 46vw)", background: "#F3EEE0", border: "1px solid #EAE2CE" }}>
@@ -758,6 +977,31 @@ function StudyScreen({ word, media, onHome, onBackToDict }) {
           </button>
         </div>
       </div>
+
+      {/* 단어 연결 팝업 (두번째 컷 미리보기) */}
+      {popup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6" style={{ background: "rgba(15,27,45,0.55)" }} onClick={() => setPopup(null)}>
+          <div className="rounded-2xl bg-white p-4 shadow-2xl" style={{ width: 220 }} onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => { setPopup(null); onJumpToWord(popup.word); }}
+              className="w-full rounded-xl overflow-hidden mb-3"
+              style={{ height: 140, background: "#F3EEE0", border: "1px solid #EAE2CE" }}
+            >
+              {popup.image ? (
+                <div className="w-full h-full" style={{ backgroundImage: "url(" + popup.image + ")", backgroundSize: "400% 100%", backgroundPosition: "33.333% 0" }} />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-xs" style={{ color: "#C9BF9F" }}>이미지 없음</div>
+              )}
+            </button>
+            <p className="text-center font-serif text-lg font-bold mb-1" style={{ color: "#1E3A5F" }}>{popup.word.word}</p>
+            <p className="text-center text-xs mb-3" style={{ color: "#9C8F70" }}>탭하면 이 단어로 이동해요</p>
+            <button onClick={() => setPopup(null)} className="w-full py-2 rounded-lg text-xs font-medium" style={{ background: "#F0EADA", color: "#5B6B7F" }}>
+              닫기
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="fixed bottom-0 left-0 right-0 flex items-center justify-between px-6 py-3" style={{ background: "rgba(15,27,45,0.9)" }}>
         <button onClick={onBackToDict} className="flex items-center gap-1 text-white text-sm px-3 py-2">
           <ChevronLeft size={18} /> 사전으로
@@ -765,9 +1009,236 @@ function StudyScreen({ word, media, onHome, onBackToDict }) {
         {everCompleted ? (
           <span className="flex items-center gap-1.5 text-xs" style={{ color: "#8FD19E" }}><CheckCircle2 size={14} /> 학습 완료</span>
         ) : (
-          <span className="text-xs" style={{ color: "#B7C6DA" }}>발음과 풀이를 끝까지 들으면 완료로 표시돼요</span>
+          <span className="text-xs" style={{ color: "#B7C6DA" }}>발음과 풀이를 끝까지 들으면 다음으로 넘어갈 수 있어요</span>
         )}
-        <div className="w-20" />
+        <button
+          onClick={onNext}
+          disabled={!everCompleted || !hasNext}
+          className="flex items-center gap-1 text-sm px-4 py-2 rounded-full font-medium transition"
+          style={{
+            background: everCompleted && hasNext ? "#D9A441" : "#2A3B52",
+            color: everCompleted && hasNext ? "#1E3A5F" : "#5B6B7F",
+            cursor: everCompleted && hasNext ? "pointer" : "not-allowed",
+          }}
+        >
+          다음 <ChevronRight size={18} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
+// ============ 퀴즈 화면 (일일 목표 달성 후 자동 출제) ============
+function shuffleArr(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function buildQuizQuestions(words, allWords) {
+  const pool = words.length >= 4 ? words : allWords; // 정답 후보가 너무 적으면 전체 풀에서 보충
+  const count = Math.min(10, Math.max(words.length, 1));
+  const picks = shuffleArr(words.length ? words : allWords).slice(0, count);
+  return picks.map((w, i) => {
+    const type = i % 2 === 0 ? "mc" : "spell";
+    if (type === "mc") {
+      const distractors = shuffleArr(pool.filter((x) => x.word !== w.word)).slice(0, 3);
+      const choices = shuffleArr([w, ...distractors]);
+      return { type, word: w, choices };
+    } else {
+      const letters = w.word.split("");
+      const blankCount = letters.length <= 3 ? 1 : 2;
+      const idxs = shuffleArr(letters.map((_, i2) => i2)).slice(0, blankCount).sort((a2, b2) => a2 - b2);
+      return { type, word: w, blankIdxs: idxs };
+    }
+  });
+}
+
+function QuizScreen({ words, allWords, media, onHome, onFinish }) {
+  const [questions] = useState(() => buildQuizQuestions(words, allWords));
+  const [qIndex, setQIndex] = useState(0);
+  const [selected, setSelected] = useState(null);
+  const [answered, setAnswered] = useState(false);
+  const [correctCount, setCorrectCount] = useState(0);
+  const [blanks, setBlanks] = useState([]);
+  const [phase, setPhase] = useState(questions.length ? "playing" : "empty");
+  const inputRefs = useRef([]);
+
+  const q = questions[qIndex];
+
+  useEffect(() => {
+    if (q && q.type === "spell") {
+      setBlanks(q.blankIdxs.map(() => ""));
+      inputRefs.current = [];
+    }
+    setSelected(null);
+    setAnswered(false);
+  }, [qIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (phase === "playing" && q && q.type === "spell" && !answered) {
+      setTimeout(() => inputRefs.current[0]?.focus(), 100);
+    }
+  }, [qIndex, phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (phase === "empty") {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center gap-4 px-6" style={{ background: "#0F1B2D" }}>
+        <p className="text-white text-sm">오늘 학습한 단어가 없어서 퀴즈를 만들 수 없어요.</p>
+        <button onClick={onHome} className="px-5 py-2.5 rounded-full text-sm font-medium" style={{ background: "#D9A441", color: "#1E3A5F" }}>홈으로</button>
+      </div>
+    );
+  }
+
+  if (phase === "result") {
+    const pct = Math.round((correctCount / questions.length) * 100);
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center gap-4 px-6" style={{ background: "#0F1B2D" }}>
+        <Trophy size={44} style={{ color: "#D9A441" }} />
+        <h1 className="text-white font-serif text-2xl font-bold">퀴즈 완료!</h1>
+        <p className="text-5xl font-extrabold" style={{ color: "#8FD19E" }}>{correctCount} / {questions.length}</p>
+        <p className="text-sm" style={{ color: "#B7C6DA" }}>정답률 {pct}%</p>
+        <button onClick={onFinish} className="mt-2 px-6 py-3 rounded-full font-medium text-sm" style={{ background: "#D9A441", color: "#1E3A5F" }}>
+          홈으로
+        </button>
+      </div>
+    );
+  }
+
+  const m = media[q.word.word] || {};
+  const frame2Style = {
+    backgroundImage: m.image ? "url(" + m.image + ")" : undefined,
+    backgroundSize: "400% 100%",
+    backgroundPosition: "33.333% 0",
+  };
+
+  const selectMc = (choice) => {
+    if (answered) return;
+    setSelected(choice.word);
+    setAnswered(true);
+    if (choice.word === q.word.word) setCorrectCount((c) => c + 1);
+  };
+
+  const handleBlankChange = (i, val) => {
+    if (answered) return;
+    const ch = val.slice(-1);
+    const next = [...blanks];
+    next[i] = ch;
+    setBlanks(next);
+    if (ch && i < blanks.length - 1) inputRefs.current[i + 1]?.focus();
+    if (ch && i === blanks.length - 1) checkSpelling(next);
+  };
+
+  const checkSpelling = (arr) => {
+    const letters = q.word.word.split("");
+    let ok = true;
+    q.blankIdxs.forEach((idx, i) => {
+      if ((arr[i] || "").toLowerCase() !== letters[idx].toLowerCase()) ok = false;
+    });
+    setAnswered(true);
+    if (ok) setCorrectCount((c) => c + 1);
+  };
+
+  const next = () => {
+    if (qIndex + 1 >= questions.length) setPhase("result");
+    else setQIndex((i) => i + 1);
+  };
+
+  return (
+    <div className="w-full h-full flex flex-col" style={{ background: "#FBF7EF" }}>
+      <div className="flex items-center justify-between px-5 py-4" style={{ background: "#1E3A5F" }}>
+        <button onClick={onHome} className="w-9 h-9 rounded-full flex items-center justify-center" style={{ background: "#D9A441" }}>
+          <Home size={17} style={{ color: "#1E3A5F" }} />
+        </button>
+        <h1 className="text-white font-serif text-base font-bold">오늘의 퀴즈</h1>
+        <span className="text-white text-sm font-mono">{qIndex + 1} / {questions.length}</span>
+      </div>
+      <div className="h-1.5 w-full" style={{ background: "#EAE2CE" }}>
+        <div className="h-full transition-all" style={{ width: (qIndex / questions.length) * 100 + "%", background: "#D9A441" }} />
+      </div>
+
+      <div className="flex-1 flex flex-col items-center justify-center px-6 py-4 gap-5">
+        <div className="rounded-2xl overflow-hidden shadow-md" style={{ width: "min(38vh,220px)", height: "min(38vh,220px)", background: "#F3EEE0", border: "1px solid #EAE2CE" }}>
+          <div className="w-full h-full" style={frame2Style} />
+        </div>
+
+        {q.type === "mc" ? (
+          <>
+            <p className="text-xs" style={{ color: "#9C8F70" }}>이 그림에 맞는 단어를 고르세요</p>
+            <div className="grid grid-cols-2 gap-3 w-full max-w-md">
+              {q.choices.map((c) => {
+                const isCorrect = c.word === q.word.word;
+                const isSelected = selected === c.word;
+                let bg = "white", border = "#EAE2CE", color = "#1E3A5F";
+                if (answered) {
+                  if (isCorrect) { bg = "#E7F3E9"; border = "#8FD19E"; color = "#2E6B3E"; }
+                  else if (isSelected) { bg = "#FBEAE6"; border = "#E2A093"; color = "#B0402C"; }
+                }
+                return (
+                  <button key={c.word} onClick={() => selectMc(c)} disabled={answered}
+                    className="py-3.5 rounded-xl font-serif text-base font-semibold border transition"
+                    style={{ background: bg, borderColor: border, color }}>
+                    {c.word}
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-xs" style={{ color: "#9C8F70" }}>빈칸에 알맞은 철자를 채우세요</p>
+            <div className="flex gap-1.5 flex-wrap justify-center max-w-lg">
+              {q.word.word.split("").map((ch, i) => {
+                const blankPos = q.blankIdxs.indexOf(i);
+                if (blankPos === -1) {
+                  return (
+                    <div key={i} className="w-9 h-11 rounded-lg flex items-center justify-center font-serif text-lg font-bold"
+                      style={{ background: "#F0EADA", color: "#B0A588" }}>
+                      {ch}
+                    </div>
+                  );
+                }
+                let border = "#D8CDB0", bg = "white", color = "#1E3A5F";
+                if (answered) {
+                  const ok = (blanks[blankPos] || "").toLowerCase() === ch.toLowerCase();
+                  border = ok ? "#8FD19E" : "#E2A093";
+                  bg = ok ? "#E7F3E9" : "#FBEAE6";
+                  color = ok ? "#2E6B3E" : "#B0402C";
+                }
+                return (
+                  <input
+                    key={i}
+                    ref={(el) => (inputRefs.current[blankPos] = el)}
+                    value={blanks[blankPos] || ""}
+                    onChange={(e) => handleBlankChange(blankPos, e.target.value)}
+                    disabled={answered}
+                    maxLength={1}
+                    className="w-9 h-11 text-center rounded-lg border-2 font-serif text-lg font-bold outline-none"
+                    style={{ borderColor: border, background: bg, color }}
+                  />
+                );
+              })}
+            </div>
+            {answered && (
+              <p className="text-xs" style={{ color: "#9C8F70" }}>정답: <b className="font-serif" style={{ color: "#1E3A5F" }}>{q.word.word}</b></p>
+            )}
+          </>
+        )}
+
+        {answered && (
+          <button onClick={next} className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium" style={{ background: "#D9A441", color: "#1E3A5F" }}>
+            다음 <ChevronRight size={16} />
+          </button>
+        )}
+        {q.type === "spell" && !answered && (
+          <button onClick={() => checkSpelling(blanks)} className="flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-medium" style={{ background: "#1E3A5F", color: "white" }}>
+            확인
+          </button>
+        )}
       </div>
     </div>
   );
