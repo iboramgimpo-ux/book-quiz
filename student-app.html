@@ -2,24 +2,36 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>1200 Word Dictionary</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="theme-color" content="#0F1B2D">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="1200 Word Dictionary">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
 <style>
-  html, body { margin:0; padding:0; height:100%; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
-  #root { height:100%; }
+  html, body {
+    margin:0; padding:0; height:100%; width:100%;
+    font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+    overflow:hidden;                 /* 스크롤로 생기는 여백/틈 방지 */
+    overscroll-behavior:none;
+    position:fixed; inset:0;
+    -webkit-text-size-adjust:100%;
+  }
+  #root { height:100%; width:100%; overflow:hidden; }
   .app-height { height: 100vh; height: 100dvh; }
 
-  /* 기기가 세로로 잠겨있어도 화면을 강제로 가로처럼 보이게 회전 */
+  /* 기기가 세로로 잠겨있어도 화면을 강제로 가로처럼 보이게 회전
+     실제 폭/높이(px)는 JS에서 정확히 계산해 style로 직접 주입합니다 (vh/vw 오차 방지) */
   .force-landscape {
     position: fixed;
-    top: 50%; left: 50%;
-    width: 100vh; width: 100dvh;
-    height: 100vw;
-    transform: translate(-50%, -50%) rotate(90deg);
-    transform-origin: center center;
+    top: 0; left: 0;
+    transform-origin: top left;
+    overflow: hidden;
   }
 </style>
 <script>
@@ -278,6 +290,28 @@ function byteLength(str) {
   return new TextEncoder().encode(str).length;
 }
 
+// ---------- 몰입 모드(전체화면 + 가로 고정) 시도 ----------
+// ⚠️ 반드시 사용자의 클릭/탭 이벤트 안에서 "동기적으로" 호출해야 브라우저가 허용합니다.
+// - 안드로이드 Chrome: 전체화면(주소창 숨김)과 가로 고정이 모두 가능합니다.
+// - iOS Safari(일반 브라우저 탭): 두 기능 모두 지원하지 않습니다. 실패해도 조용히 무시되며,
+//   이 경우 아래의 CSS 회전(force-landscape) 방식으로 화면만 가로처럼 보이게 처리합니다.
+//   iOS에서 주소창까지 완전히 없애려면 "홈 화면에 추가"로 실행해야 합니다.
+function enterImmersive() {
+  try {
+    const el = document.documentElement;
+    const req = el.requestFullscreen || el.webkitRequestFullscreen || el.mozRequestFullScreen || el.msRequestFullscreen;
+    if (req && !document.fullscreenElement && !document.webkitFullscreenElement) {
+      const p = req.call(el);
+      if (p && p.catch) p.catch(() => {});
+    }
+  } catch (e) {}
+  try {
+    if (screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock("landscape").catch(() => {});
+    }
+  } catch (e) {}
+}
+
 window.storage = {
   // value: JSON 문자열. 큰 필드(base64 그림/오디오 등)는 자동으로
   // 별도 Firestore 문서(key__필드명)로 분리 저장합니다.
@@ -507,6 +541,7 @@ function StudentApp() {
 
   // ---------- 뒤로가기(popstate) 처리 ----------
   const navigate = useCallback((next, extra) => {
+    if (next === "study") enterImmersive(); // 사용자 탭 이벤트 안에서 바로 호출 (브라우저 허용 조건)
     historyDepth.current += 1;
     const state = { depth: historyDepth.current, screen: next };
     if (next === "study") state.wordData = extra;
@@ -825,6 +860,7 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onWordComple
   const [everCompleted, setEverCompleted] = useState(false);
   const [portraitToast, setPortraitToast] = useState(false);
   const [isPortrait, setIsPortrait] = useState(false);
+  const [rotSize, setRotSize] = useState(null); // { w, h } 회전 전 박스의 실제 px 크기
   const [popup, setPopup] = useState(null); // { word, x, y }
   const audioRef = useRef(null);
   const timerRef = useRef(null);
@@ -834,23 +870,46 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onWordComple
   const lookup = useMemo(() => buildWordLookup(allWords), [allWords]);
 
   // ---------- 가로/세로 감지: 세로여도 화면은 강제로 가로처럼 보이게 함 ----------
+  // vh/vw 대신 실제 window(visualViewport) px 크기를 직접 측정해 오차/잘림을 방지합니다.
   useEffect(() => {
     primeTts();
-    const check = () => {
-      const portrait = window.innerHeight > window.innerWidth;
+    enterImmersive(); // 화면 진입 시에도 한 번 더 시도 (이미 study로 넘어온 탭 이벤트 체인 안)
+
+    const measure = () => {
+      const vv = window.visualViewport;
+      const w = Math.round((vv && vv.width) || window.innerWidth);
+      const h = Math.round((vv && vv.height) || window.innerHeight);
+      const portrait = h > w;
       setIsPortrait(portrait);
       if (portrait) {
+        setRotSize({ w, h });
         setPortraitToast(true);
         clearTimeout(toastTimerRef.current);
         toastTimerRef.current = setTimeout(() => setPortraitToast(false), 1800);
+      } else {
+        setRotSize(null);
       }
     };
-    check();
-    window.addEventListener("resize", check);
-    try { screen.orientation && screen.orientation.lock && screen.orientation.lock("landscape").catch(() => {}); } catch (e) {}
+
+    measure();
+    // 모바일 주소창이 숨겨지는 애니메이션(약 300ms) 이후 실제 크기가 바뀌므로 재측정
+    const t1 = setTimeout(measure, 350);
+    const t2 = setTimeout(measure, 900);
+
+    window.addEventListener("resize", measure);
+    window.addEventListener("orientationchange", measure);
+    if (window.visualViewport) window.visualViewport.addEventListener("resize", measure);
+
     // 모바일 주소창 자동 숨김을 위한 살짝 스크롤
-    setTimeout(() => window.scrollTo(0, 1), 50);
-    return () => { window.removeEventListener("resize", check); clearTimeout(toastTimerRef.current); };
+    setTimeout(() => window.scrollTo(0, 1), 60);
+
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+      if (window.visualViewport) window.visualViewport.removeEventListener("resize", measure);
+      clearTimeout(toastTimerRef.current);
+      clearTimeout(t1); clearTimeout(t2);
+    };
   }, []);
 
   const speak = useCallback((text, onend) => {
@@ -939,7 +998,19 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onWordComple
   };
 
   return (
-    <div className={"w-full h-full relative" + (isPortrait ? " force-landscape" : "")} style={{ background: "#0F1B2D" }}>
+    <div
+      className={"w-full h-full relative" + (isPortrait ? " force-landscape" : "")}
+      style={
+        isPortrait && rotSize
+          ? {
+              background: "#0F1B2D",
+              width: rotSize.h + "px",
+              height: rotSize.w + "px",
+              transform: "rotate(90deg) translateY(-100%)",
+            }
+          : { background: "#0F1B2D" }
+      }
+    >
       {portraitToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full text-white text-xs" style={{ background: "rgba(0,0,0,0.75)" }}>
           <RotateCw size={13} /> 가로 화면에 최적화되어 있어요
