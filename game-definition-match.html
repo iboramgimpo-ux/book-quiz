@@ -226,19 +226,15 @@ img { max-width: 100%; display: block; }
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script>
 // ============================================================
 // firebase-storage.js
-// 1200 Word Dictionary - Firebase 연동 공용 스크립트
+// 1200 Word Dictionary - Firebase 연동 공용 스크립트 (Firestore만 사용, 무료)
 //
-// 이 파일을 5개 HTML(admin.html, student-app.html, game-*.html)에서
-// 공통으로 불러와 씁니다. window.storage.get/set/list/delete 인터페이스는
-// 그대로 유지하면서, 실제 저장은 Firestore(작은 데이터)와
-// Firebase Storage(그림·오디오 같은 큰 파일)로 나눠서 처리합니다.
-//
-// ★★★ 아래 firebaseConfig 자리에 기존 사이트에서 쓰던 설정값을
-//     그대로 붙여넣으세요. ★★★
+// Storage(유료 Blaze 필요) 대신, 그림/오디오도 전부 Firestore에 직접 저장합니다.
+// Firestore 문서는 1개당 1MB 제한이 있어서, 큰 필드(그림/오디오)는 자동으로
+// 별도 문서에 나눠 저장하고 불러올 때 다시 합칩니다. 그래도 필드 하나가
+// 900KB를 넘으면 저장이 안 되니, 그럴 땐 파일을 더 압축해서 올려주세요.
 // ============================================================
 
 const firebaseConfig = {
@@ -252,77 +248,122 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const storage = firebase.storage();
 
-// Firestore 문서 ID로 못 쓰는 문자만 살짝 치환 (콜론, 슬래시 등은 실제로 허용되지만
-// 안전하게 언더바로 통일합니다)
+const MAX_FIELD_BYTES = 900 * 1024; // Firestore 문서 1MB 제한 대비 여유
+
 function sanitizeKey(key) {
   return String(key).replace(/[\/\s]/g, "_");
 }
 
-// data:... 로 시작하는 base64 문자열을 Firebase Storage에 업로드하고
-// 다운로드 URL로 바꿔줍니다. (Firestore 문서 하나는 1MB 제한이라
-// 그림/오디오 같은 큰 파일은 반드시 Storage에 저장해야 합니다)
-async function uploadDataUrlIfNeeded(key, fieldName, dataUrl) {
-  if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:")) {
-    return dataUrl; // base64 파일이 아니면 그대로 반환 (숫자, 문자열 등)
-  }
-  const res = await fetch(dataUrl);
-  const blob = await res.blob();
-  const ext = blob.type.split("/")[1] || "bin";
-  const path = `media/${sanitizeKey(key)}/${fieldName}.${ext}`;
-  const ref = storage.ref(path);
-  await ref.put(blob);
-  return await ref.getDownloadURL();
+function byteLength(str) {
+  return new TextEncoder().encode(str).length;
 }
 
 window.storage = {
-  // value: JSON 문자열. 그 안에 data:로 시작하는 필드가 있으면
-  // 자동으로 Storage에 업로드하고 URL로 치환한 뒤 Firestore에 저장합니다.
+  // value: JSON 문자열. 큰 필드(base64 그림/오디오 등)는 자동으로
+  // 별도 Firestore 문서(key__필드명)로 분리 저장합니다.
   async set(key, value, shared) {
+    const k = sanitizeKey(key);
+    let parsed;
     try {
-      let parsed;
-      try {
-        parsed = JSON.parse(value);
-      } catch (e) {
-        parsed = value; // JSON이 아니면 그냥 문자열 그대로
-      }
+      parsed = JSON.parse(value);
+    } catch (e) {
+      parsed = value;
+    }
 
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        for (const field of Object.keys(parsed)) {
-          if (typeof parsed[field] === "string" && parsed[field].startsWith("data:")) {
-            parsed[field] = await uploadDataUrlIfNeeded(key, field, parsed[field]);
-          }
+    const external = [];
+    const inline = {};
+
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      for (const field of Object.keys(parsed)) {
+        const v = parsed[field];
+        if (typeof v === "string" && byteLength(v) > MAX_FIELD_BYTES) {
+          throw new Error(
+            "'" + field + "' 파일이 너무 커요 (약 " + Math.round(byteLength(v) / 1024) +
+            "KB). 900KB 이하로 압축해서 다시 올려주세요."
+          );
         }
       }
+      // 문서 전체가 커지지 않도록, 필드 하나당 200KB 넘으면 별도 문서로 분리
+      for (const field of Object.keys(parsed)) {
+        const v = parsed[field];
+        if (typeof v === "string" && byteLength(v) > 200 * 1024) {
+          external.push(field);
+        } else {
+          inline[field] = v;
+        }
+      }
+    } else {
+      inline.__raw = parsed;
+    }
 
-      const finalValue = JSON.stringify(parsed);
-      await db.collection("kv").doc(sanitizeKey(key)).set({
-        value: finalValue,
-        shared: !!shared,
+    // 별도 문서로 분리된 필드 저장
+    for (const field of external) {
+      await db.collection("kv").doc(k + "__" + field).set({
+        value: parsed[field],
         updatedAt: Date.now(),
       });
-      return { key, value: finalValue, shared: !!shared };
-    } catch (e) {
-      console.error("storage.set 실패:", key, e);
-      return null;
     }
+
+    // 매니페스트(본문) 문서 저장
+    await db.collection("kv").doc(k).set({
+      isManifest: true,
+      value: JSON.stringify(inline),
+      external: external,
+      shared: !!shared,
+      updatedAt: Date.now(),
+    });
+
+    // 호출한 쪽에서 바로 쓸 수 있도록 완전한 값을 재조합해서 반환
+    const fullValue = parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? JSON.stringify(parsed)
+      : value;
+    return { key, value: fullValue, shared: !!shared };
   },
 
   async get(key, shared) {
-    const doc = await db.collection("kv").doc(sanitizeKey(key)).get();
+    const k = sanitizeKey(key);
+    const doc = await db.collection("kv").doc(k).get();
     if (!doc.exists) {
       throw new Error("not found: " + key);
     }
-    return { key, value: doc.data().value, shared: !!shared };
+    const data = doc.data();
+    let obj;
+    try {
+      obj = JSON.parse(data.value);
+    } catch (e) {
+      obj = data.value;
+    }
+    if (data.external && data.external.length && obj && typeof obj === "object") {
+      for (const field of data.external) {
+        try {
+          const sub = await db.collection("kv").doc(k + "__" + field).get();
+          if (sub.exists) obj[field] = sub.data().value;
+        } catch (e) {}
+      }
+    }
+    const finalValue = obj && typeof obj === "object" && obj.__raw !== undefined ? obj.__raw : JSON.stringify(obj);
+    return { key, value: finalValue, shared: !!shared };
   },
 
   async delete(key, shared) {
-    await db.collection("kv").doc(sanitizeKey(key)).delete();
+    const k = sanitizeKey(key);
+    try {
+      const doc = await db.collection("kv").doc(k).get();
+      if (doc.exists) {
+        const data = doc.data();
+        if (data.external && data.external.length) {
+          for (const field of data.external) {
+            await db.collection("kv").doc(k + "__" + field).delete().catch(() => {});
+          }
+        }
+      }
+    } catch (e) {}
+    await db.collection("kv").doc(k).delete();
     return { key, deleted: true, shared: !!shared };
   },
 
-  // prefix로 시작하는 문서 ID들을 찾습니다 (Firestore 문서ID 범위 쿼리 사용)
+  // prefix로 시작하는 "본문" 문서 ID들만 찾습니다 (분리 저장된 __필드 문서는 제외)
   async list(prefix, shared) {
     const p = sanitizeKey(prefix || "");
     let query = db.collection("kv");
@@ -333,11 +374,12 @@ window.storage = {
     }
     const snap = await query.get();
     const keys = [];
-    snap.forEach((doc) => keys.push(doc.id));
+    snap.forEach((doc) => {
+      if (doc.data().isManifest) keys.push(doc.id);
+    });
     return { keys, prefix, shared: !!shared };
   },
 };
-
 </script>
 </head>
 <body>

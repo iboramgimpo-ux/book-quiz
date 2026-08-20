@@ -226,19 +226,15 @@ img { max-width: 100%; display: block; }
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-storage-compat.js"></script>
 <script>
 // ============================================================
 // firebase-storage.js
-// 1200 Word Dictionary - Firebase 연동 공용 스크립트
+// 1200 Word Dictionary - Firebase 연동 공용 스크립트 (Firestore만 사용, 무료)
 //
-// 이 파일을 5개 HTML(admin.html, student-app.html, game-*.html)에서
-// 공통으로 불러와 씁니다. window.storage.get/set/list/delete 인터페이스는
-// 그대로 유지하면서, 실제 저장은 Firestore(작은 데이터)와
-// Firebase Storage(그림·오디오 같은 큰 파일)로 나눠서 처리합니다.
-//
-// ★★★ 아래 firebaseConfig 자리에 기존 사이트에서 쓰던 설정값을
-//     그대로 붙여넣으세요. ★★★
+// Storage(유료 Blaze 필요) 대신, 그림/오디오도 전부 Firestore에 직접 저장합니다.
+// Firestore 문서는 1개당 1MB 제한이 있어서, 큰 필드(그림/오디오)는 자동으로
+// 별도 문서에 나눠 저장하고 불러올 때 다시 합칩니다. 그래도 필드 하나가
+// 900KB를 넘으면 저장이 안 되니, 그럴 땐 파일을 더 압축해서 올려주세요.
 // ============================================================
 
 const firebaseConfig = {
@@ -252,77 +248,122 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
-const storage = firebase.storage();
 
-// Firestore 문서 ID로 못 쓰는 문자만 살짝 치환 (콜론, 슬래시 등은 실제로 허용되지만
-// 안전하게 언더바로 통일합니다)
+const MAX_FIELD_BYTES = 900 * 1024; // Firestore 문서 1MB 제한 대비 여유
+
 function sanitizeKey(key) {
   return String(key).replace(/[\/\s]/g, "_");
 }
 
-// data:... 로 시작하는 base64 문자열을 Firebase Storage에 업로드하고
-// 다운로드 URL로 바꿔줍니다. (Firestore 문서 하나는 1MB 제한이라
-// 그림/오디오 같은 큰 파일은 반드시 Storage에 저장해야 합니다)
-async function uploadDataUrlIfNeeded(key, fieldName, dataUrl) {
-  if (typeof dataUrl !== "string" || !dataUrl.startsWith("data:")) {
-    return dataUrl; // base64 파일이 아니면 그대로 반환 (숫자, 문자열 등)
-  }
-  const res = await fetch(dataUrl);
-  const blob = await res.blob();
-  const ext = blob.type.split("/")[1] || "bin";
-  const path = `media/${sanitizeKey(key)}/${fieldName}.${ext}`;
-  const ref = storage.ref(path);
-  await ref.put(blob);
-  return await ref.getDownloadURL();
+function byteLength(str) {
+  return new TextEncoder().encode(str).length;
 }
 
 window.storage = {
-  // value: JSON 문자열. 그 안에 data:로 시작하는 필드가 있으면
-  // 자동으로 Storage에 업로드하고 URL로 치환한 뒤 Firestore에 저장합니다.
+  // value: JSON 문자열. 큰 필드(base64 그림/오디오 등)는 자동으로
+  // 별도 Firestore 문서(key__필드명)로 분리 저장합니다.
   async set(key, value, shared) {
+    const k = sanitizeKey(key);
+    let parsed;
     try {
-      let parsed;
-      try {
-        parsed = JSON.parse(value);
-      } catch (e) {
-        parsed = value; // JSON이 아니면 그냥 문자열 그대로
-      }
+      parsed = JSON.parse(value);
+    } catch (e) {
+      parsed = value;
+    }
 
-      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-        for (const field of Object.keys(parsed)) {
-          if (typeof parsed[field] === "string" && parsed[field].startsWith("data:")) {
-            parsed[field] = await uploadDataUrlIfNeeded(key, field, parsed[field]);
-          }
+    const external = [];
+    const inline = {};
+
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      for (const field of Object.keys(parsed)) {
+        const v = parsed[field];
+        if (typeof v === "string" && byteLength(v) > MAX_FIELD_BYTES) {
+          throw new Error(
+            "'" + field + "' 파일이 너무 커요 (약 " + Math.round(byteLength(v) / 1024) +
+            "KB). 900KB 이하로 압축해서 다시 올려주세요."
+          );
         }
       }
+      // 문서 전체가 커지지 않도록, 필드 하나당 200KB 넘으면 별도 문서로 분리
+      for (const field of Object.keys(parsed)) {
+        const v = parsed[field];
+        if (typeof v === "string" && byteLength(v) > 200 * 1024) {
+          external.push(field);
+        } else {
+          inline[field] = v;
+        }
+      }
+    } else {
+      inline.__raw = parsed;
+    }
 
-      const finalValue = JSON.stringify(parsed);
-      await db.collection("kv").doc(sanitizeKey(key)).set({
-        value: finalValue,
-        shared: !!shared,
+    // 별도 문서로 분리된 필드 저장
+    for (const field of external) {
+      await db.collection("kv").doc(k + "__" + field).set({
+        value: parsed[field],
         updatedAt: Date.now(),
       });
-      return { key, value: finalValue, shared: !!shared };
-    } catch (e) {
-      console.error("storage.set 실패:", key, e);
-      return null;
     }
+
+    // 매니페스트(본문) 문서 저장
+    await db.collection("kv").doc(k).set({
+      isManifest: true,
+      value: JSON.stringify(inline),
+      external: external,
+      shared: !!shared,
+      updatedAt: Date.now(),
+    });
+
+    // 호출한 쪽에서 바로 쓸 수 있도록 완전한 값을 재조합해서 반환
+    const fullValue = parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? JSON.stringify(parsed)
+      : value;
+    return { key, value: fullValue, shared: !!shared };
   },
 
   async get(key, shared) {
-    const doc = await db.collection("kv").doc(sanitizeKey(key)).get();
+    const k = sanitizeKey(key);
+    const doc = await db.collection("kv").doc(k).get();
     if (!doc.exists) {
       throw new Error("not found: " + key);
     }
-    return { key, value: doc.data().value, shared: !!shared };
+    const data = doc.data();
+    let obj;
+    try {
+      obj = JSON.parse(data.value);
+    } catch (e) {
+      obj = data.value;
+    }
+    if (data.external && data.external.length && obj && typeof obj === "object") {
+      for (const field of data.external) {
+        try {
+          const sub = await db.collection("kv").doc(k + "__" + field).get();
+          if (sub.exists) obj[field] = sub.data().value;
+        } catch (e) {}
+      }
+    }
+    const finalValue = obj && typeof obj === "object" && obj.__raw !== undefined ? obj.__raw : JSON.stringify(obj);
+    return { key, value: finalValue, shared: !!shared };
   },
 
   async delete(key, shared) {
-    await db.collection("kv").doc(sanitizeKey(key)).delete();
+    const k = sanitizeKey(key);
+    try {
+      const doc = await db.collection("kv").doc(k).get();
+      if (doc.exists) {
+        const data = doc.data();
+        if (data.external && data.external.length) {
+          for (const field of data.external) {
+            await db.collection("kv").doc(k + "__" + field).delete().catch(() => {});
+          }
+        }
+      }
+    } catch (e) {}
+    await db.collection("kv").doc(k).delete();
     return { key, deleted: true, shared: !!shared };
   },
 
-  // prefix로 시작하는 문서 ID들을 찾습니다 (Firestore 문서ID 범위 쿼리 사용)
+  // prefix로 시작하는 "본문" 문서 ID들만 찾습니다 (분리 저장된 __필드 문서는 제외)
   async list(prefix, shared) {
     const p = sanitizeKey(prefix || "");
     let query = db.collection("kv");
@@ -333,11 +374,12 @@ window.storage = {
     }
     const snap = await query.get();
     const keys = [];
-    snap.forEach((doc) => keys.push(doc.id));
+    snap.forEach((doc) => {
+      if (doc.data().isManifest) keys.push(doc.id);
+    });
     return { keys, prefix, shared: !!shared };
   },
 };
-
 </script>
 </head>
 <body>
@@ -357,6 +399,7 @@ function X({size=18,color="currentColor"}){return(<svg width={size} height={size
 function FileJson({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>);}
 function Trash2({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>);}
 function Plus({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>);}
+function ChevronDown({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>);}
 
 
 // ---------- 전체 1200단어 데이터 (내장) ----------
@@ -427,7 +470,7 @@ function AdminUploadTool() {
       await window.storage.set("deleted-words", JSON.stringify(next), false);
       flash(word + " 삭제됨");
     } catch (e) {
-      flash("삭제 저장 실패");
+      flash("삭제 저장 실패", true);
     }
   };
 
@@ -454,7 +497,7 @@ function AdminUploadTool() {
       setActiveLetter(w[0].toUpperCase());
       setQuery("");
     } catch (e) {
-      flash("추가 저장 실패");
+      flash("추가 저장 실패", true);
     }
   };
 
@@ -480,9 +523,11 @@ function AdminUploadTool() {
     return { total, img, aud };
   }, [words, media]);
 
-  const flash = (msg) => {
+  const flash = (msg, isError) => {
     setStatus(msg);
-    setTimeout(() => setStatus(""), 2200);
+    if (!isError) {
+      setTimeout(() => setStatus(""), 2200);
+    }
   };
 
   const readFileAsDataUrl = (file) =>
@@ -493,53 +538,83 @@ function AdminUploadTool() {
       reader.readAsDataURL(file);
     });
 
-  const updateMediaField = async (word, field, value) => {
-    const current = media[word] || { duration: DEFAULT_DURATION };
-    const next = { ...current, [field]: value };
-    setMedia((prev) => ({ ...prev, [word]: next }));
-    try {
-      const res = await window.storage.set("media:" + word, JSON.stringify(next), false);
-      if (!res) flash("저장 실패, 파일 용량을 확인해주세요");
-    } catch (e) {
-      flash("저장 실패, 파일 용량을 확인해주세요 (5MB 이하)");
-    }
-  };
+  // ---- 선택된 단어의 "임시 편집 상태" (아직 저장 안 된 변경사항) ----
+  const [pendingMedia, setPendingMedia] = useState({ duration: DEFAULT_DURATION });
+  const [saving, setSaving] = useState(false);
+  const [saveResult, setSaveResult] = useState(null); // null | "success" | "error"
+  const [saveErrorMsg, setSaveErrorMsg] = useState("");
 
-  const handleImageUpload = async (word, file) => {
+  useEffect(() => {
+    if (selectedWord) {
+      setPendingMedia(media[selectedWord.word] || { duration: DEFAULT_DURATION });
+      setSaveResult(null);
+      setSaveErrorMsg("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedWord]);
+
+  const isDirty = selectedWord
+    ? JSON.stringify(pendingMedia) !== JSON.stringify(media[selectedWord.word] || { duration: DEFAULT_DURATION })
+    : false;
+
+  const handleImageUpload = async (file) => {
     if (!file) return;
     try {
       const dataUrl = await readFileAsDataUrl(file);
-      await updateMediaField(word, "image", dataUrl);
-      flash(word + " 그림 저장됨");
+      setPendingMedia((prev) => ({ ...prev, image: dataUrl }));
+      setSaveResult(null);
     } catch (e) {
-      flash("그림을 읽지 못했어요");
+      flash("그림을 읽지 못했어요", true);
     }
   };
 
-  const handleWordAudioUpload = async (word, file) => {
+  const handleWordAudioUpload = async (file) => {
     if (!file) return;
     try {
       const dataUrl = await readFileAsDataUrl(file);
-      await updateMediaField(word, "wordAudio", dataUrl);
-      flash(word + " 발음 오디오 저장됨");
+      setPendingMedia((prev) => ({ ...prev, wordAudio: dataUrl }));
+      setSaveResult(null);
     } catch (e) {
-      flash("오디오를 읽지 못했어요");
+      flash("오디오를 읽지 못했어요", true);
     }
   };
 
-  const handleDefinitionAudioUpload = async (word, file) => {
+  const handleDefinitionAudioUpload = async (file) => {
     if (!file) return;
     try {
       const dataUrl = await readFileAsDataUrl(file);
-      await updateMediaField(word, "definitionAudio", dataUrl);
-      flash(word + " 풀이 오디오 저장됨");
+      setPendingMedia((prev) => ({ ...prev, definitionAudio: dataUrl }));
+      setSaveResult(null);
     } catch (e) {
-      flash("오디오를 읽지 못했어요");
+      flash("오디오를 읽지 못했어요", true);
     }
   };
 
-  const handleDurationChange = async (word, value) => {
-    await updateMediaField(word, "duration", value);
+  const handleDurationChange = (value) => {
+    setPendingMedia((prev) => ({ ...prev, duration: value }));
+  };
+
+  const saveSelected = async () => {
+    if (!selectedWord) return;
+    setSaving(true);
+    setSaveResult(null);
+    try {
+      const res = await window.storage.set("media:" + selectedWord.word, JSON.stringify(pendingMedia), false);
+      if (res && res.value) {
+        const savedValue = JSON.parse(res.value); // Storage 업로드 후 실제 URL로 치환된 값
+        setMedia((prev) => ({ ...prev, [selectedWord.word]: savedValue }));
+        setPendingMedia(savedValue);
+        setSaveResult("success");
+      } else {
+        setSaveResult("error");
+        setSaveErrorMsg("저장에 실패했어요. Firebase Storage 규칙(rules)이 쓰기를 막고 있을 수 있어요.");
+      }
+    } catch (e) {
+      console.error(e);
+      setSaveResult("error");
+      setSaveErrorMsg("저장 중 오류: " + (e && e.message ? e.message : String(e)));
+    }
+    setSaving(false);
   };
 
   useEffect(() => {
@@ -549,7 +624,7 @@ function AdminUploadTool() {
 
   const togglePreview = () => setPreviewPlaying((p) => !p);
 
-  const selectedMedia = selectedWord ? media[selectedWord.word] || {} : {};
+  const selectedMedia = pendingMedia;
   const duration = selectedMedia.duration || DEFAULT_DURATION;
 
   return (
@@ -731,7 +806,7 @@ function AdminUploadTool() {
         <div className="fixed inset-0 z-40 flex justify-end">
           <div className="absolute inset-0" style={{ background: "rgba(20,25,35,0.45)" }} onClick={() => setSelectedWord(null)} />
           <div className="relative w-full sm:max-w-md h-full bg-white overflow-y-auto shadow-2xl">
-            <div className="sticky top-0 flex items-center justify-between px-5 py-4 border-b" style={{ background: "#FBF7EF", borderColor: "#EAE2CE" }}>
+            <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b" style={{ background: "#FBF7EF", borderColor: "#EAE2CE" }}>
               <div>
                 <div className="text-xs" style={{ color: "#9C8F70" }}>{selectedWord.gloss}</div>
                 <h2 className="font-serif text-2xl font-bold" style={{ color: "#1E3A5F" }}>{selectedWord.word}</h2>
@@ -741,7 +816,7 @@ function AdminUploadTool() {
               </button>
             </div>
 
-            <div className="p-5 space-y-6">
+            <div className="p-5 space-y-6 pb-28">
               <div className="text-sm leading-relaxed p-3 rounded-lg" style={{ background: "#F7F3E8", color: "#4B5563" }}>
                 <p className="mb-1.5">{selectedWord.defn}</p>
                 <p className="italic" style={{ color: "#8A7F68" }}>{selectedWord.example}</p>
@@ -749,7 +824,7 @@ function AdminUploadTool() {
 
               <section>
                 <SectionLabel icon={<ImageIcon size={15} />} text="그림 스프라이트 (4프레임, 정사각형)" />
-                <UploadBox accept="image/*" onFile={(f) => handleImageUpload(selectedWord.word, f)} hasFile={!!selectedMedia.image} />
+                <UploadBox accept="image/*" onFile={handleImageUpload} hasFile={!!selectedMedia.image} />
                 {selectedMedia.image && (
                   <div className="mt-3">
                     <div
@@ -781,7 +856,7 @@ function AdminUploadTool() {
                     max={3}
                     step={0.1}
                     value={duration}
-                    onChange={(e) => handleDurationChange(selectedWord.word, parseFloat(e.target.value))}
+                    onChange={(e) => handleDurationChange(parseFloat(e.target.value))}
                     className="flex-1"
                   />
                   <span className="text-sm font-mono w-14 text-right px-2 py-1 rounded-md" style={{ background: "#F0EADA", color: "#1E3A5F" }}>
@@ -795,20 +870,43 @@ function AdminUploadTool() {
 
               <section>
                 <SectionLabel icon={<Music size={15} />} text="단어 발음 오디오" />
-                <UploadBox accept="audio/*" onFile={(f) => handleWordAudioUpload(selectedWord.word, f)} hasFile={!!selectedMedia.wordAudio} />
+                <UploadBox accept="audio/*" onFile={handleWordAudioUpload} hasFile={!!selectedMedia.wordAudio} />
                 {selectedMedia.wordAudio && <audio controls src={selectedMedia.wordAudio} className="w-full mt-2" style={{ height: 36 }} />}
               </section>
 
               <section>
                 <SectionLabel icon={<Music size={15} />} text="영영풀이 오디오 (정의+예문)" />
-                <UploadBox accept="audio/*" onFile={(f) => handleDefinitionAudioUpload(selectedWord.word, f)} hasFile={!!selectedMedia.definitionAudio} />
+                <UploadBox accept="audio/*" onFile={handleDefinitionAudioUpload} hasFile={!!selectedMedia.definitionAudio} />
                 {selectedMedia.definitionAudio && <audio controls src={selectedMedia.definitionAudio} className="w-full mt-2" style={{ height: 36 }} />}
               </section>
 
-              <div className="flex items-center gap-2 text-xs px-3 py-2.5 rounded-lg" style={{ background: "#EFF6EE", color: "#4C7A5B" }}>
-                <Check size={14} />
-                파일을 올리면 자동으로 저장돼요.
-              </div>
+              {saveResult === "error" && (
+                <div className="text-xs px-3 py-2.5 rounded-lg" style={{ background: "#FBEAE6", color: "#B0402C" }}>
+                  <p className="font-semibold mb-0.5">저장 실패</p>
+                  <p>{saveErrorMsg}</p>
+                </div>
+              )}
+              {saveResult === "success" && (
+                <div className="flex items-center gap-2 text-xs px-3 py-2.5 rounded-lg" style={{ background: "#EFF6EE", color: "#4C7A5B" }}>
+                  <Check size={14} /> 저장 완료됐어요.
+                </div>
+              )}
+            </div>
+
+            {/* 하단 고정 저장 버튼 */}
+            <div className="sticky bottom-0 left-0 right-0 p-4 border-t" style={{ background: "white", borderColor: "#EAE2CE" }}>
+              <button
+                onClick={saveSelected}
+                disabled={!isDirty || saving}
+                className="w-full py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 transition"
+                style={{
+                  background: !isDirty ? "#F0EADA" : saving ? "#B9AE94" : "#D9A441",
+                  color: !isDirty ? "#B0A588" : "#1E3A5F",
+                  cursor: !isDirty || saving ? "not-allowed" : "pointer",
+                }}
+              >
+                {saving ? "저장 중..." : isDirty ? "저장하기" : "저장할 변경사항 없음"}
+              </button>
             </div>
           </div>
         </div>
@@ -846,20 +944,35 @@ function AdminUploadTool() {
   );
 }
 
+// 학년 배열 (기존 사이트와 동일 순서)
+const GRADES = ['4세','5세','6세','7세','초1','초2','초3','초4','초5','초6','중1','중2','중3','고등이상'];
+
+function calcCurrentGrade(joinGrade, joinDateStr) {
+  if (!joinGrade || joinGrade === '고등이상') return joinGrade || '-';
+  if (!joinDateStr) return joinGrade;
+  const joinDate = new Date(joinDateStr);
+  const now = new Date();
+  const yearsPassed = now.getFullYear() - joinDate.getFullYear();
+  const gradeIdx = GRADES.indexOf(joinGrade);
+  if (gradeIdx === -1) return joinGrade;
+  const newIdx = Math.min(gradeIdx + yearsPassed, GRADES.length - 1);
+  return GRADES[newIdx];
+}
+
 function StudentLinksPanel() {
-  const [students, setStudents] = useState([]);
+  const [allStudents, setAllStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState(null);
   const [search, setSearch] = useState("");
+  const [expanded, setExpanded] = useState({});
 
   useEffect(() => {
     (async () => {
       try {
-        const snap = await db.collection("students").where("active", "==", true).get();
+        const snap = await db.collection("students").get();
         const list = [];
         snap.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
-        list.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
-        setStudents(list);
+        setAllStudents(list.filter((s) => !s.withdrawn));
       } catch (e) {
         console.error("학생 목록 불러오기 실패:", e);
       }
@@ -867,8 +980,26 @@ function StudentLinksPanel() {
     })();
   }, []);
 
+  // 대표자녀(main 또는 studentType 미설정) + 형제자매 그룹핑 (기존 사이트와 동일 로직)
+  const mainStudents = useMemo(() => {
+    const mains = allStudents
+      .filter((s) => s.studentType === "main" || !s.studentType)
+      .sort((a, b) => (a.name || "").localeCompare(b.name || "", "ko"));
+    return mains;
+  }, [allStudents]);
+
+  const siblingMap = useMemo(() => {
+    const map = {};
+    allStudents
+      .filter((s) => s.studentType === "sibling")
+      .forEach((s) => {
+        if (!map[s.mainStudentId]) map[s.mainStudentId] = [];
+        map[s.mainStudentId].push(s);
+      });
+    return map;
+  }, [allStudents]);
+
   const studentAppUrl = (id) => {
-    // admin.html과 같은 폴더의 student-app.html을 가리킵니다.
     const base = location.origin + location.pathname.replace(/admin\.html$/, "");
     return base + "student-app.html?student=" + id;
   };
@@ -876,19 +1007,19 @@ function StudentLinksPanel() {
   const copyLink = (id) => {
     const url = studentAppUrl(id);
     navigator.clipboard?.writeText(url).then(
-      () => {
-        setCopiedId(id);
-        setTimeout(() => setCopiedId(null), 1500);
-      },
-      () => {
-        prompt("아래 링크를 복사하세요:", url);
-      }
+      () => { setCopiedId(id); setTimeout(() => setCopiedId(null), 1500); },
+      () => { prompt("아래 링크를 복사하세요:", url); }
     );
   };
 
-  const filtered = students.filter((s) =>
-    (s.name || "").toLowerCase().includes(search.toLowerCase())
-  );
+  const toggleExpand = (id) => {
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const q = search.trim().toLowerCase();
+  const visibleMains = q
+    ? mainStudents.filter((s) => (s.name || "").toLowerCase().includes(q))
+    : mainStudents;
 
   return (
     <div className="max-w-3xl mx-auto px-5 py-5">
@@ -905,38 +1036,83 @@ function StudentLinksPanel() {
 
       {loading ? (
         <p className="text-sm text-center py-10" style={{ color: "#9CA8B8" }}>불러오는 중...</p>
-      ) : filtered.length === 0 ? (
+      ) : visibleMains.length === 0 ? (
         <p className="text-sm text-center py-10" style={{ color: "#9CA8B8" }}>
           등록된 학생이 없어요. (기존 사이트에서 먼저 학생을 등록해주세요)
         </p>
       ) : (
         <div className="space-y-2">
-          {filtered.map((s) => (
-            <div
-              key={s.id}
-              className="flex items-center justify-between gap-3 rounded-xl bg-white border p-3.5"
-              style={{ borderColor: "#EAE2CE" }}
-            >
-              <div className="min-w-0">
-                <p className="font-serif text-base font-semibold truncate" style={{ color: "#1E3A5F" }}>
-                  {s.name || "(이름 없음)"}
-                </p>
-                <p className="text-xs truncate" style={{ color: "#9C8F70" }}>
-                  {s.grade ? s.grade + " · " : ""}{s.school || ""}
-                </p>
+          {visibleMains.map((s) => {
+            const siblings = siblingMap[s.id] || [];
+            const isOpen = !!expanded[s.id];
+            const grade = calcCurrentGrade(s.grade, s.joinDate);
+            return (
+              <div key={s.id} className="rounded-xl bg-white border overflow-hidden" style={{ borderColor: "#EAE2CE" }}>
+                <div className="flex items-center justify-between gap-3 p-3.5">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {siblings.length > 0 && (
+                      <button
+                        onClick={() => toggleExpand(s.id)}
+                        className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center"
+                        style={{ background: "#F0EADA" }}
+                      >
+                        {isOpen ? <ChevronDown size={13} style={{ color: "#5B6B7F" }} /> : <Plus size={13} style={{ color: "#5B6B7F" }} />}
+                      </button>
+                    )}
+                    <div className="min-w-0">
+                      <p className="font-serif text-base font-semibold truncate" style={{ color: "#1E3A5F" }}>
+                        {s.name || "(이름 없음)"}
+                      </p>
+                      <p className="text-xs truncate" style={{ color: "#9C8F70" }}>
+                        {grade !== "-" ? grade + " · " : ""}{s.school || ""}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => copyLink(s.id)}
+                    className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition"
+                    style={{
+                      background: copiedId === s.id ? "#E7F3E9" : "#1E3A5F",
+                      color: copiedId === s.id ? "#2E6B3E" : "white",
+                    }}
+                  >
+                    {copiedId === s.id ? (<><Check size={13} /> 복사됨</>) : "링크 복사"}
+                  </button>
+                </div>
+
+                {isOpen && siblings.length > 0 && (
+                  <div style={{ borderTop: "1px solid #EAE2CE", background: "#FBF7EF" }}>
+                    {siblings.map((sib) => {
+                      const sibGrade = calcCurrentGrade(sib.grade, sib.joinDate);
+                      return (
+                        <div key={sib.id} className="flex items-center justify-between gap-3 pl-11 pr-3.5 py-3" style={{ borderTop: "1px solid #EFE8D6" }}>
+                          <div className="min-w-0">
+                            <p className="font-serif text-sm font-semibold truncate" style={{ color: "#1E3A5F" }}>
+                              {sib.name || "(이름 없음)"}
+                              <span className="ml-1.5 text-[10px] font-normal px-1.5 py-0.5 rounded-full" style={{ background: "#F0EADA", color: "#9C8F70" }}>형제자매</span>
+                            </p>
+                            <p className="text-xs truncate" style={{ color: "#9C8F70" }}>
+                              {sibGrade !== "-" ? sibGrade + " · " : ""}{sib.school || ""}
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => copyLink(sib.id)}
+                            className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition"
+                            style={{
+                              background: copiedId === sib.id ? "#E7F3E9" : "#1E3A5F",
+                              color: copiedId === sib.id ? "#2E6B3E" : "white",
+                            }}
+                          >
+                            {copiedId === sib.id ? (<><Check size={13} /> 복사됨</>) : "링크 복사"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
-              <button
-                onClick={() => copyLink(s.id)}
-                className="flex-shrink-0 flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-medium transition"
-                style={{
-                  background: copiedId === s.id ? "#E7F3E9" : "#1E3A5F",
-                  color: copiedId === s.id ? "#2E6B3E" : "white",
-                }}
-              >
-                {copiedId === s.id ? (<><Check size={13} /> 복사됨</>) : "링크 복사"}
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
