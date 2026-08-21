@@ -992,6 +992,8 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onGoDictiona
   const audioRef = useRef(null);
   const timerRef = useRef(null);
   const toastTimerRef = useRef(null);
+  const effectAudioRef = useRef(null);
+  const effectTimeoutRef = useRef(null);
   const m = media[word.word] || {};
   const duration = m.duration || DEFAULT_DURATION;
   const lookup = useMemo(() => buildWordLookup(allWords), [allWords]);
@@ -1056,6 +1058,17 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onGoDictiona
     if (audioRef.current) { audioRef.current.pause(); audioRef.current.currentTime = 0; }
   }, []);
 
+  // 그림이 움직이는 동안(애니메이션 단계) 효과음을 순서대로 이어서 재생하고,
+  // 애니메이션이 끝나는 시점에 정확히 맞춰 소리도 함께 멈춥니다.
+  const stopEffects = useCallback(() => {
+    if (effectAudioRef.current) {
+      try { effectAudioRef.current.pause(); } catch (e) {}
+      effectAudioRef.current.onended = null;
+      effectAudioRef.current = null;
+    }
+    clearTimeout(effectTimeoutRef.current);
+  }, []);
+
   const playAudioOrTts = useCallback((src, text, onend) => {
     stopAll();
     if (src) {
@@ -1071,6 +1084,7 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onGoDictiona
 
   useEffect(() => {
     stopAll();
+    stopEffects();
     clearTimeout(timerRef.current);
     setAnimPlaying(false);
     setAnimLoop(0);
@@ -1098,6 +1112,30 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onGoDictiona
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stage, animLoop]);
+
+  // 효과음(최대 4개)을 애니메이션 시작과 동시에 순서대로 재생하고,
+  // 그림 애니메이션 총 재생 시간(2회 반복)이 끝나면 자동으로 멈춥니다.
+  useEffect(() => {
+    if (stage !== "animation") { stopEffects(); return; }
+    const effects = (m.soundEffects || []).filter(Boolean);
+    if (effects.length === 0) return undefined;
+    const totalAnimMs = Math.max(0, duration * 1000 * 2 - 50);
+    const startedAt = Date.now();
+    let cancelled = false;
+    const playNext = (idx) => {
+      if (cancelled) return;
+      if (idx >= effects.length) return;
+      if (Date.now() - startedAt >= totalAnimMs) return;
+      const a = new Audio(effects[idx]);
+      effectAudioRef.current = a;
+      a.onended = () => playNext(idx + 1);
+      a.play().catch(() => playNext(idx + 1));
+    };
+    playNext(0);
+    effectTimeoutRef.current = setTimeout(stopEffects, totalAnimMs);
+    return () => { cancelled = true; stopEffects(); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stage]);
 
   useEffect(() => {
     if (stage === "definition") {

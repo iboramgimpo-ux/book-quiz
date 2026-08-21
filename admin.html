@@ -226,6 +226,8 @@ img { max-width: 100%; display: block; }
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ============================================================
 // firebase-storage.js
@@ -400,6 +402,8 @@ function FileJson({size=18,color="currentColor"}){return(<svg width={size} heigh
 function Trash2({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>);}
 function Plus({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>);}
 function ChevronDown({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>);}
+function Download({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>);}
+function FileSpreadsheet({size=18,color="currentColor"}){return(<svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>);}
 
 
 // ---------- 전체 1200단어 데이터 (내장) ----------
@@ -410,6 +414,7 @@ const DEFAULT_DURATION = 1.6;
 function AdminUploadTool() {
   const [deletedWords, setDeletedWords] = useState([]);
   const [addedWords, setAddedWords] = useState([]);
+  const [wordEdits, setWordEdits] = useState({}); // word -> { gloss, defn, example } 수정 내용
   const [media, setMedia] = useState({});
   const [activeLetter, setActiveLetter] = useState("A");
   const [query, setQuery] = useState("");
@@ -422,12 +427,17 @@ function AdminUploadTool() {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [mainTab, setMainTab] = useState("words"); // words | students
 
+  const applyEdit = (w) => {
+    const e = wordEdits[w.word];
+    return e ? { ...w, ...e } : w;
+  };
+
   const words = useMemo(() => {
     const deletedSet = new Set(deletedWords);
-    const base = ALL_WORDS.filter((w) => !deletedSet.has(w.word));
-    const addedFiltered = addedWords.filter((w) => !deletedSet.has(w.word));
+    const base = ALL_WORDS.filter((w) => !deletedSet.has(w.word)).map(applyEdit);
+    const addedFiltered = addedWords.filter((w) => !deletedSet.has(w.word)).map(applyEdit);
     return [...base, ...addedFiltered];
-  }, [deletedWords, addedWords]);
+  }, [deletedWords, addedWords, wordEdits]);
 
   const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("");
 
@@ -456,6 +466,10 @@ function AdminUploadTool() {
       try {
         const add = await window.storage.get("added-words", false);
         if (add && add.value) setAddedWords(JSON.parse(add.value));
+      } catch (e) {}
+      try {
+        const edits = await window.storage.get("word-edits", false);
+        if (edits && edits.value) setWordEdits(JSON.parse(edits.value));
       } catch (e) {}
       setLoaded(true);
     })();
@@ -538,8 +552,116 @@ function AdminUploadTool() {
       reader.readAsDataURL(file);
     });
 
+  // ---- 전체 다운로드 (그림 / 효과음 / 엑셀) ----
+  const [bulkDownloading, setBulkDownloading] = useState(""); // "" | "images" | "sounds" | "excel"
+
+  const dataUrlExt = (dataUrl, fallback) => {
+    const m = /^data:[^;]+\/([a-zA-Z0-9.+-]+);base64,/.exec(dataUrl || "");
+    if (!m) return fallback;
+    let ext = m[1].toLowerCase();
+    if (ext === "jpeg") ext = "jpg";
+    if (ext === "mpeg") ext = "mp3";
+    return ext;
+  };
+
+  const sanitizeFileName = (s) => String(s).replace(/[\\/:*?"<>|]/g, "_");
+
+  const downloadBlob = (blob, filename) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  };
+
+  const handleDownloadAllImages = async () => {
+    if (bulkDownloading) return;
+    setBulkDownloading("images");
+    try {
+      const zip = new JSZip();
+      let count = 0;
+      for (const w of words) {
+        const m = media[w.word];
+        if (m && m.image) {
+          const ext = dataUrlExt(m.image, "png");
+          zip.file(sanitizeFileName(w.word) + "." + ext, m.image.split(",")[1], { base64: true });
+          count++;
+        }
+      }
+      if (count === 0) { flash("업로드된 그림이 없어요", true); setBulkDownloading(""); return; }
+      const blob = await zip.generateAsync({ type: "blob" });
+      downloadBlob(blob, "word-images.zip");
+      flash(count + "개 그림 다운로드 완료");
+    } catch (e) {
+      console.error(e);
+      flash("그림 다운로드 중 오류가 발생했어요", true);
+    }
+    setBulkDownloading("");
+  };
+
+  const handleDownloadAllSounds = async () => {
+    if (bulkDownloading) return;
+    setBulkDownloading("sounds");
+    try {
+      const zip = new JSZip();
+      let count = 0;
+      for (const w of words) {
+        const m = media[w.word];
+        if (!m) continue;
+        if (m.wordAudio) {
+          zip.file(sanitizeFileName(w.word) + "_word." + dataUrlExt(m.wordAudio, "mp3"), m.wordAudio.split(",")[1], { base64: true });
+          count++;
+        }
+        if (m.definitionAudio) {
+          zip.file(sanitizeFileName(w.word) + "_definition." + dataUrlExt(m.definitionAudio, "mp3"), m.definitionAudio.split(",")[1], { base64: true });
+          count++;
+        }
+        (m.soundEffects || []).forEach((src, idx) => {
+          if (!src) return;
+          zip.file(sanitizeFileName(w.word) + "_effect" + (idx + 1) + "." + dataUrlExt(src, "mp3"), src.split(",")[1], { base64: true });
+          count++;
+        });
+      }
+      if (count === 0) { flash("업로드된 효과음/오디오가 없어요", true); setBulkDownloading(""); return; }
+      const blob = await zip.generateAsync({ type: "blob" });
+      downloadBlob(blob, "word-sounds.zip");
+      flash(count + "개 오디오 다운로드 완료");
+    } catch (e) {
+      console.error(e);
+      flash("효과음 다운로드 중 오류가 발생했어요", true);
+    }
+    setBulkDownloading("");
+  };
+
+  const handleDownloadExcel = () => {
+    if (bulkDownloading) return;
+    setBulkDownloading("excel");
+    try {
+      const rows = words.map((w) => ({
+        단어: w.word,
+        한글뜻: w.gloss,
+        사전적정의: w.defn,
+        예문: w.example,
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws["!cols"] = [{ wch: 18 }, { wch: 20 }, { wch: 55 }, { wch: 55 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "1200단어");
+      XLSX.writeFile(wb, "1200-words.xlsx");
+      flash(words.length + "개 단어 엑셀 다운로드 완료");
+    } catch (e) {
+      console.error(e);
+      flash("엑셀 다운로드 중 오류가 발생했어요", true);
+    }
+    setBulkDownloading("");
+  };
+
   // ---- 선택된 단어의 "임시 편집 상태" (아직 저장 안 된 변경사항) ----
   const [pendingMedia, setPendingMedia] = useState({ duration: DEFAULT_DURATION });
+  const [pendingFields, setPendingFields] = useState({ gloss: "", defn: "", example: "" });
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState(null); // null | "success" | "error"
   const [saveErrorMsg, setSaveErrorMsg] = useState("");
@@ -547,6 +669,11 @@ function AdminUploadTool() {
   useEffect(() => {
     if (selectedWord) {
       setPendingMedia(media[selectedWord.word] || { duration: DEFAULT_DURATION });
+      setPendingFields({
+        gloss: selectedWord.gloss || "",
+        defn: selectedWord.defn || "",
+        example: selectedWord.example || "",
+      });
       setSaveResult(null);
       setSaveErrorMsg("");
     }
@@ -554,8 +681,38 @@ function AdminUploadTool() {
   }, [selectedWord]);
 
   const isDirty = selectedWord
-    ? JSON.stringify(pendingMedia) !== JSON.stringify(media[selectedWord.word] || { duration: DEFAULT_DURATION })
+    ? JSON.stringify(pendingMedia) !== JSON.stringify(media[selectedWord.word] || { duration: DEFAULT_DURATION }) ||
+      pendingFields.gloss !== (selectedWord.gloss || "") ||
+      pendingFields.defn !== (selectedWord.defn || "") ||
+      pendingFields.example !== (selectedWord.example || "")
     : false;
+
+  const handleFieldChange = (field, value) => {
+    setPendingFields((prev) => ({ ...prev, [field]: value }));
+    setSaveResult(null);
+  };
+
+  // ---- 효과음 (최대 4개, 순서대로 재생) ----
+  const MAX_EFFECTS = 4;
+  const handleAddSoundEffect = async (file) => {
+    if (!file) return;
+    const current = pendingMedia.soundEffects || [];
+    if (current.length >= MAX_EFFECTS) { flash(`효과음은 최대 ${MAX_EFFECTS}개까지 올릴 수 있어요`, true); return; }
+    try {
+      const dataUrl = await readFileAsDataUrl(file);
+      setPendingMedia((prev) => ({ ...prev, soundEffects: [...(prev.soundEffects || []), dataUrl] }));
+      setSaveResult(null);
+    } catch (e) {
+      flash("효과음을 읽지 못했어요", true);
+    }
+  };
+  const handleRemoveSoundEffect = (idx) => {
+    setPendingMedia((prev) => ({
+      ...prev,
+      soundEffects: (prev.soundEffects || []).filter((_, i) => i !== idx),
+    }));
+    setSaveResult(null);
+  };
 
   const handleImageUpload = async (file) => {
     if (!file) return;
@@ -604,11 +761,33 @@ function AdminUploadTool() {
         const savedValue = JSON.parse(res.value); // Storage 업로드 후 실제 URL로 치환된 값
         setMedia((prev) => ({ ...prev, [selectedWord.word]: savedValue }));
         setPendingMedia(savedValue);
-        setSaveResult("success");
       } else {
         setSaveResult("error");
         setSaveErrorMsg("저장에 실패했어요. Firebase Storage 규칙(rules)이 쓰기를 막고 있을 수 있어요.");
+        setSaving(false);
+        return;
       }
+
+      // 뜻/정의/예문이 바뀌었다면 word-edits에 함께 저장
+      const fieldsChanged =
+        pendingFields.gloss !== (selectedWord.gloss || "") ||
+        pendingFields.defn !== (selectedWord.defn || "") ||
+        pendingFields.example !== (selectedWord.example || "");
+      if (fieldsChanged) {
+        const nextEdits = {
+          ...wordEdits,
+          [selectedWord.word]: {
+            gloss: pendingFields.gloss.trim() || "-",
+            defn: pendingFields.defn.trim() || "(정의를 입력해주세요)",
+            example: pendingFields.example.trim() || "(예문을 입력해주세요)",
+          },
+        };
+        await window.storage.set("word-edits", JSON.stringify(nextEdits), false);
+        setWordEdits(nextEdits);
+        setSelectedWord((prev) => (prev ? { ...prev, ...nextEdits[selectedWord.word] } : prev));
+      }
+
+      setSaveResult("success");
     } catch (e) {
       console.error(e);
       setSaveResult("error");
@@ -680,6 +859,33 @@ function AdminUploadTool() {
       <div className="sm:hidden px-5 py-2 text-xs flex gap-4" style={{ color: "#5B6B7F" }}>
         <span>그림 {stats.img}/{stats.total}</span>
         <span>풀이음성 {stats.aud}/{stats.total}</span>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-5 pt-4 flex flex-wrap gap-2">
+        <button
+          onClick={handleDownloadAllImages}
+          disabled={!!bulkDownloading}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition disabled:opacity-50"
+          style={{ background: "white", color: "#1E3A5F", border: "1px solid #E4DCC9" }}
+        >
+          <Download size={14} /> {bulkDownloading === "images" ? "그림 압축 중..." : "그림 전체 다운로드"}
+        </button>
+        <button
+          onClick={handleDownloadAllSounds}
+          disabled={!!bulkDownloading}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition disabled:opacity-50"
+          style={{ background: "white", color: "#1E3A5F", border: "1px solid #E4DCC9" }}
+        >
+          <Download size={14} /> {bulkDownloading === "sounds" ? "효과음 압축 중..." : "효과음 전체 다운로드"}
+        </button>
+        <button
+          onClick={handleDownloadExcel}
+          disabled={!!bulkDownloading}
+          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition disabled:opacity-50"
+          style={{ background: "white", color: "#1E3A5F", border: "1px solid #E4DCC9" }}
+        >
+          <FileSpreadsheet size={14} /> {bulkDownloading === "excel" ? "엑셀 생성 중..." : "1200단어 엑셀 다운로드"}
+        </button>
       </div>
 
       <div className="max-w-6xl mx-auto px-5 pt-5">
@@ -808,7 +1014,7 @@ function AdminUploadTool() {
           <div className="relative w-full sm:max-w-md h-full bg-white overflow-y-auto shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between px-5 py-4 border-b" style={{ background: "#FBF7EF", borderColor: "#EAE2CE" }}>
               <div>
-                <div className="text-xs" style={{ color: "#9C8F70" }}>{selectedWord.gloss}</div>
+                <div className="text-xs" style={{ color: "#9C8F70" }}>{pendingFields.gloss || selectedWord.gloss}</div>
                 <h2 className="font-serif text-2xl font-bold" style={{ color: "#1E3A5F" }}>{selectedWord.word}</h2>
               </div>
               <button onClick={() => setSelectedWord(null)} className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: "#F0EADA" }}>
@@ -817,10 +1023,14 @@ function AdminUploadTool() {
             </div>
 
             <div className="p-5 space-y-6 pb-28">
-              <div className="text-sm leading-relaxed p-3 rounded-lg" style={{ background: "#F7F3E8", color: "#4B5563" }}>
-                <p className="mb-1.5">{selectedWord.defn}</p>
-                <p className="italic" style={{ color: "#8A7F68" }}>{selectedWord.example}</p>
-              </div>
+              <section>
+                <SectionLabel text="한글 뜻 / 사전적 정의 / 예문 (수정 가능)" />
+                <div className="space-y-2">
+                  <FormField label="한글 뜻" value={pendingFields.gloss} onChange={(v) => handleFieldChange("gloss", v)} placeholder="예: 따다, 줍다" />
+                  <FormField label="사전적 정의 (영어)" value={pendingFields.defn} onChange={(v) => handleFieldChange("defn", v)} placeholder="To pick means to..." multiline />
+                  <FormField label="예문 (영어)" value={pendingFields.example} onChange={(v) => handleFieldChange("example", v)} placeholder="This girl is picking..." multiline />
+                </div>
+              </section>
 
               <section>
                 <SectionLabel icon={<ImageIcon size={15} />} text="그림 스프라이트 (4프레임, 정사각형)" />
@@ -878,6 +1088,32 @@ function AdminUploadTool() {
                 <SectionLabel icon={<Music size={15} />} text="영영풀이 오디오 (정의+예문)" />
                 <UploadBox accept="audio/*" onFile={handleDefinitionAudioUpload} hasFile={!!selectedMedia.definitionAudio} />
                 {selectedMedia.definitionAudio && <audio controls src={selectedMedia.definitionAudio} className="w-full mt-2" style={{ height: 36 }} />}
+              </section>
+
+              <section>
+                <SectionLabel icon={<Music size={15} />} text={"효과음 (최대 " + MAX_EFFECTS + "개, 순서대로 이어서 재생 · 그림 애니메이션 시간에 맞춰 자동으로 멈춰요)"} />
+                <div className="space-y-2">
+                  {(selectedMedia.soundEffects || []).map((src, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <span className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold" style={{ background: "#F0EADA", color: "#8A7F68" }}>
+                        {idx + 1}
+                      </span>
+                      <audio controls src={src} className="flex-1" style={{ height: 36 }} />
+                      <button
+                        onClick={() => handleRemoveSoundEffect(idx)}
+                        className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center"
+                        style={{ background: "#FBEAE6" }}
+                      >
+                        <Trash2 size={12} style={{ color: "#C4593F" }} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {(selectedMedia.soundEffects || []).length < MAX_EFFECTS && (
+                  <div className="mt-2">
+                    <UploadBox accept="audio/*" onFile={handleAddSoundEffect} hasFile={false} />
+                  </div>
+                )}
               </section>
 
               {saveResult === "error" && (
