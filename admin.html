@@ -228,6 +228,7 @@ img { max-width: 100%; display: block; }
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.0/lame.min.js"></script>
 <script>
 // ============================================================
 // firebase-storage.js
@@ -566,6 +567,79 @@ function AdminUploadTool() {
 
   const sanitizeFileName = (s) => String(s).replace(/[\\/:*?"<>|]/g, "_");
 
+  const dataUrlToArrayBuffer = (dataUrl) => {
+    const base64 = dataUrl.split(",")[1];
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes.buffer;
+  };
+
+  // 효과음 여러 개를 하나의 모노 PCM(Float32)으로 순서대로 이어붙입니다.
+  const concatToMonoFloat32 = async (dataUrls, audioCtx) => {
+    const buffers = [];
+    let totalLength = 0;
+    for (const url of dataUrls) {
+      const arrBuf = dataUrlToArrayBuffer(url);
+      const audioBuffer = await audioCtx.decodeAudioData(arrBuf);
+      buffers.push(audioBuffer);
+      totalLength += audioBuffer.length;
+    }
+    const result = new Float32Array(totalLength);
+    let offset = 0;
+    for (const buf of buffers) {
+      let channelData;
+      if (buf.numberOfChannels > 1) {
+        channelData = new Float32Array(buf.length);
+        for (let ch = 0; ch < buf.numberOfChannels; ch++) {
+          const data = buf.getChannelData(ch);
+          for (let i = 0; i < buf.length; i++) channelData[i] += data[i] / buf.numberOfChannels;
+        }
+      } else {
+        channelData = buf.getChannelData(0);
+      }
+      result.set(channelData, offset);
+      offset += channelData.length;
+    }
+    return result;
+  };
+
+  const floatTo16BitPCM = (samples) => {
+    const out = new Int16Array(samples.length);
+    for (let i = 0; i < samples.length; i++) {
+      const s = Math.max(-1, Math.min(1, samples[i]));
+      out[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+    }
+    return out;
+  };
+
+  const encodeMp3 = (int16Samples, sampleRate) => {
+    const mp3encoder = new lamejs.Mp3Encoder(1, sampleRate, 128);
+    const blockSize = 1152;
+    const mp3Data = [];
+    for (let i = 0; i < int16Samples.length; i += blockSize) {
+      const chunk = int16Samples.subarray(i, i + blockSize);
+      const buf = mp3encoder.encodeBuffer(chunk);
+      if (buf.length > 0) mp3Data.push(buf);
+    }
+    const end = mp3encoder.flush();
+    if (end.length > 0) mp3Data.push(end);
+    return new Blob(mp3Data, { type: "audio/mp3" });
+  };
+
+  // 효과음(최대 4개)을 재생 순서 그대로 이어붙여 하나의 mp3 파일로 만듭니다.
+  const combineEffectsToMp3 = async (dataUrls) => {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    const audioCtx = new AudioContextClass();
+    try {
+      const floatSamples = await concatToMonoFloat32(dataUrls, audioCtx);
+      const int16 = floatTo16BitPCM(floatSamples);
+      return encodeMp3(int16, audioCtx.sampleRate);
+    } finally {
+      audioCtx.close();
+    }
+  };
+
   const downloadBlob = (blob, filename) => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -619,11 +693,13 @@ function AdminUploadTool() {
           zip.file(sanitizeFileName(w.word) + "_definition." + dataUrlExt(m.definitionAudio, "mp3"), m.definitionAudio.split(",")[1], { base64: true });
           count++;
         }
-        (m.soundEffects || []).forEach((src, idx) => {
-          if (!src) return;
-          zip.file(sanitizeFileName(w.word) + "_effect" + (idx + 1) + "." + dataUrlExt(src, "mp3"), src.split(",")[1], { base64: true });
+        const effects = (m.soundEffects || []).filter(Boolean);
+        if (effects.length > 0) {
+          // 애니메이션 재생 시 순서대로 이어지는 효과음이므로, 하나의 mp3로 합쳐서 담아요.
+          const mp3Blob = await combineEffectsToMp3(effects);
+          zip.file(sanitizeFileName(w.word) + "_effects.mp3", mp3Blob);
           count++;
-        });
+        }
       }
       if (count === 0) { flash("업로드된 효과음/오디오가 없어요", true); setBulkDownloading(""); return; }
       const blob = await zip.generateAsync({ type: "blob" });
