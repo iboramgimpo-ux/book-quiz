@@ -940,11 +940,18 @@ function buildLinkedPlan(word, lookup) {
   const lastIndexForKey = {};
   matches.forEach((m, i) => { if (m) lastIndexForKey[m.word.toLowerCase()] = i; });
 
+  // 빨간색(클릭 가능)으로 표시할 단어는 최대 4개까지로 제한합니다.
+  // 뒤쪽(마지막)에 나온 단어부터 4개를 세고, 그 앞에 있던 단어들은 검은색 일반 텍스트로 둡니다.
+  const MAX_HIGHLIGHTS = 4;
+  const uniqueLastIndices = Object.values(lastIndexForKey).sort((a, b) => b - a);
+  const highlightIndexSet = new Set(uniqueLastIndices.slice(0, MAX_HIGHLIGHTS));
+
   const rendered = allTokens.map((tok, i) => {
     const m = matches[i];
     if (!m) return { text: tok, mode: "plain" };
     const isLast = lastIndexForKey[m.word.toLowerCase()] === i;
-    return { text: tok, mode: isLast ? "highlight" : "muted", match: m };
+    const shouldHighlight = isLast && highlightIndexSet.has(i);
+    return { text: tok, mode: shouldHighlight ? "highlight" : "muted", match: m };
   });
 
   return { defn: rendered.slice(0, boundary), example: rendered.slice(boundary) };
