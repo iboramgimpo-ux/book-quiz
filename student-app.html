@@ -475,6 +475,7 @@ function StudentApp() {
   const [studentInfo, setStudentInfo] = useState(null); // {id, name, ...} or null(guest)
   const [todayWords, setTodayWords] = useState([]); // 오늘 완료한 단어 목록
   const [showGoalModal, setShowGoalModal] = useState(false);
+  const [cycleData, setCycleData] = useState({ current: 1, lastTry: null, pending: false });
   const historyDepth = useRef(0);
 
   const studentId = useMemo(() => {
@@ -483,6 +484,7 @@ function StudentApp() {
   }, []);
   const goalKey = "daily-goal:" + studentId;
   const progressKey = "today-progress:" + studentId;
+  const cycleKey = "cycle-data:" + studentId;
 
   const sortedWords = useMemo(
     () => [...SAMPLE_WORDS].sort((a, b) => a.word.localeCompare(b.word)),
@@ -534,6 +536,10 @@ function StudentApp() {
           const parsed = JSON.parse(p.value);
           if (parsed.date === todayStr()) setTodayWords(parsed.words || []);
         }
+      } catch (e) {}
+      try {
+        const c = await window.storage.get(cycleKey, false);
+        if (c && c.value) setCycleData(JSON.parse(c.value));
       } catch (e) {}
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -597,8 +603,16 @@ function StudentApp() {
       }
       return next;
     });
+    // 학습 로그: 마지막 학습일 자동 기록 + 마지막 단어(zookeeper)까지 도달하면
+    // 다음에 첫 단어(above)로 돌아갔을 때 cycle이 올라가도록 표시해둡니다.
+    setCycleData((prev) => {
+      const isLastWord = sortedWords.length > 0 && word.toLowerCase() === sortedWords[sortedWords.length - 1].word.toLowerCase();
+      const next = { ...prev, lastTry: todayStr(), pending: prev.pending || isLastWord };
+      window.storage.set(cycleKey, JSON.stringify(next), false).catch(() => {});
+      return next;
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dailyGoal, progressKey]);
+  }, [dailyGoal, progressKey, cycleKey, sortedWords]);
 
   const nextWordAfter = useCallback((current) => {
     if (!current) return null;
@@ -608,6 +622,19 @@ function StudentApp() {
   }, [sortedWords]);
 
   const goToWord = useCallback((w) => navigate("study", w), [navigate]);
+
+  // 학생이 마지막 단어(zookeeper)까지 마치고 다시 첫 단어(above)로 돌아오면 cycle을 1 올립니다.
+  useEffect(() => {
+    if (!studyWord || sortedWords.length === 0) return;
+    if (studyWord.word.toLowerCase() !== sortedWords[0].word.toLowerCase()) return;
+    setCycleData((prev) => {
+      if (!prev.pending) return prev;
+      const next = { current: prev.current + 1, lastTry: prev.lastTry, pending: false };
+      window.storage.set(cycleKey, JSON.stringify(next), false).catch(() => {});
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [studyWord]);
 
   return (
     <div className="w-full app-height overflow-hidden" style={{ background: "#0F1B2D" }}>
@@ -636,6 +663,7 @@ function StudentApp() {
           allWords={sortedWords}
           onHome={goHome}
           onBackToDict={() => window.history.back()}
+          onGoDictionary={() => navigate("dictionary", "A")}
           onWordComplete={recordWordComplete}
           onJumpToWord={goToWord}
           hasNext={!!nextWordAfter(studyWord)}
@@ -660,6 +688,7 @@ function StudentApp() {
           dailyGoal={dailyGoal}
           setDailyGoal={saveDailyGoal}
           studentInfo={studentInfo}
+          cycleData={cycleData}
         />
       )}
 
@@ -871,37 +900,79 @@ function getWordStems(token) {
   return [...cands];
 }
 
-// 정의/예문 텍스트를 단어 단위로 쪼개서, 1200단어 목록에 있는 단어(변형 포함)는
-// 빨간색 클릭 가능한 span으로 바꿔줍니다.
-function LinkedText({ text, lookup, currentWord, onWordTap }) {
-  const parts = text.split(/(\b[a-zA-Z']+\b)/g);
+// 1200단어 목록 중, 예문/풀이에서 빨간 링크로 표시하지 않을 품사(전치사/방향부사 등)에
+// 해당하는 원형 단어들. 이 목록에 있으면 명사/형용사/동사가 아니므로 제외합니다.
+const NON_HIGHLIGHT_WORDS = new Set([
+  "above", "behind", "below", "between", "down", "inside", "outside", "over", "under", "up",
+]);
+
+function isHighlightableEntry(entry) {
+  return !NON_HIGHLIGHT_WORDS.has(entry.word.toLowerCase());
+}
+
+function tokenizeForLinks(text) {
+  return text.split(/(\b[a-zA-Z']+\b)/g);
+}
+
+// 정의(defn)와 예문(example)을 함께 훑으면서, 1200단어 목록에 있는 단어(변형 포함)를 찾아냅니다.
+// - 전치사류(NON_HIGHLIGHT_WORDS)는 아예 표시하지 않습니다.
+// - 같은 단어가 여러 번 나오면, 가장 마지막에 나온 것만 빨간색/클릭 가능하게 하고
+//   그 앞의 것들은 검은색 일반 텍스트(클릭 불가)로 둡니다.
+function buildLinkedPlan(word, lookup) {
+  const defnTokens = tokenizeForLinks(word.defn);
+  const exampleTokens = tokenizeForLinks(word.example);
+  const allTokens = defnTokens.concat(exampleTokens);
+  const boundary = defnTokens.length;
+
+  const matches = allTokens.map((tok) => {
+    if (!/^[a-zA-Z']+$/.test(tok)) return null;
+    const stems = getWordStems(tok);
+    let match = null;
+    for (const s of stems) {
+      if (lookup[s]) { match = lookup[s]; break; }
+    }
+    if (!match) return null;
+    if (match.word.toLowerCase() === word.word.toLowerCase()) return null;
+    if (!isHighlightableEntry(match)) return null;
+    return match;
+  });
+
+  const lastIndexForKey = {};
+  matches.forEach((m, i) => { if (m) lastIndexForKey[m.word.toLowerCase()] = i; });
+
+  const rendered = allTokens.map((tok, i) => {
+    const m = matches[i];
+    if (!m) return { text: tok, mode: "plain" };
+    const isLast = lastIndexForKey[m.word.toLowerCase()] === i;
+    return { text: tok, mode: isLast ? "highlight" : "muted", match: m };
+  });
+
+  return { defn: rendered.slice(0, boundary), example: rendered.slice(boundary) };
+}
+
+function LinkedSegments({ segments, onWordTap }) {
   return (
     <>
-      {parts.map((part, i) => {
-        if (!/^[a-zA-Z']+$/.test(part)) return <React.Fragment key={i}>{part}</React.Fragment>;
-        const stems = getWordStems(part);
-        let match = null;
-        for (const s of stems) {
-          if (lookup[s]) { match = lookup[s]; break; }
-        }
-        if (match && match.word.toLowerCase() !== currentWord.toLowerCase()) {
+      {segments.map((seg, i) => {
+        if (seg.mode === "highlight") {
           return (
             <span
               key={i}
-              onClick={(e) => { e.stopPropagation(); onWordTap(match, part, e); }}
+              onClick={(e) => { e.stopPropagation(); onWordTap(seg.match, seg.text, e); }}
               style={{ color: "#C0392B", fontWeight: 600, cursor: "pointer", textDecoration: "underline", textDecorationStyle: "dotted" }}
             >
-              {part}
+              {seg.text}
             </span>
           );
         }
-        return <React.Fragment key={i}>{part}</React.Fragment>;
+        // 이미 뒤에서 다시 나오는(중복) 단어의 앞쪽 등장 - 검은색 일반 텍스트, 터치 반응 없음
+        return <React.Fragment key={i}>{seg.text}</React.Fragment>;
       })}
     </>
   );
 }
 
-function StudyScreen({ word, media, allWords, onHome, onBackToDict, onWordComplete, onJumpToWord, hasNext, onNext }) {
+function StudyScreen({ word, media, allWords, onHome, onBackToDict, onGoDictionary, onWordComplete, onJumpToWord, hasNext, onNext }) {
   const [stage, setStage] = useState("word");
   const [animPlaying, setAnimPlaying] = useState(false);
   const [animLoop, setAnimLoop] = useState(0); // 0 또는 1 (2회 반복재생)
@@ -917,6 +988,7 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onWordComple
   const m = media[word.word] || {};
   const duration = m.duration || DEFAULT_DURATION;
   const lookup = useMemo(() => buildWordLookup(allWords), [allWords]);
+  const linkedPlan = useMemo(() => buildLinkedPlan(word, lookup), [word, lookup]);
 
   // ---------- 가로/세로 감지: 세로여도 화면은 강제로 가로처럼 보이게 함 ----------
   // vh/vw 대신 실제 window(visualViewport) px 크기를 직접 측정해 오차/잘림을 방지합니다.
@@ -1076,9 +1148,14 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onWordComple
       )}
       <div className="w-full h-full flex" style={{ background: "#FBF7EF" }}>
         <div className="w-1/2 h-full flex flex-col justify-center px-10 lg:px-16">
-          <button onClick={onHome} className="absolute top-4 left-4 w-11 h-11 rounded-full flex items-center justify-center z-10 shadow-md" style={{ background: "#D9A441" }}>
-            <Home size={20} style={{ color: "#1E3A5F" }} />
-          </button>
+          <div className="absolute top-4 left-4 z-10 flex items-center gap-2">
+            <button onClick={onHome} className="w-11 h-11 rounded-full flex items-center justify-center shadow-md" style={{ background: "#D9A441" }}>
+              <Home size={20} style={{ color: "#1E3A5F" }} />
+            </button>
+            <button onClick={onGoDictionary} className="h-11 px-4 rounded-full flex items-center justify-center shadow-md text-sm font-semibold" style={{ background: "#D9A441", color: "#1E3A5F" }}>
+              Dictionary
+            </button>
+          </div>
           <button onClick={tapWord} className="text-left group">
             <div className="font-serif font-extrabold leading-none tracking-tight" style={{ fontSize: "clamp(2.5rem, 7vw, 5rem)", color: "#2563EB" }}>
               {word.word}
@@ -1089,10 +1166,10 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onWordComple
           </button>
           <div className="text-left mt-6" onClick={tapDef} style={{ cursor: "pointer" }}>
             <p style={{ fontSize: "clamp(0.95rem, 1.6vw, 1.15rem)", color: "#374151" }}>
-              <LinkedText text={word.defn} lookup={lookup} currentWord={word.word} onWordTap={handleLinkedWordTap} />
+              <LinkedSegments segments={linkedPlan.defn} onWordTap={handleLinkedWordTap} />
             </p>
             <p className="italic mt-2" style={{ fontSize: "clamp(0.95rem, 1.6vw, 1.15rem)", color: "#6B7280" }}>
-              <LinkedText text={word.example} lookup={lookup} currentWord={word.word} onWordTap={handleLinkedWordTap} />
+              <LinkedSegments segments={linkedPlan.example} onWordTap={handleLinkedWordTap} />
             </p>
           </div>
         </div>
@@ -1133,7 +1210,7 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onWordComple
 
       <div className="fixed bottom-0 left-0 right-0 flex items-center justify-between px-6 py-3" style={{ background: "rgba(15,27,45,0.9)" }}>
         <button onClick={onBackToDict} className="flex items-center gap-1 text-sm px-3.5 py-2 rounded-full font-medium" style={{ background: "#D9A441", color: "#1E3A5F" }}>
-          <ChevronLeft size={16} /> 사전으로
+          <ChevronLeft size={16} /> Back
         </button>
         {everCompleted ? (
           <span className="flex items-center gap-1.5 text-xs" style={{ color: "#8FD19E" }}><CheckCircle2 size={14} /> 학습 완료</span>
@@ -1150,7 +1227,7 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onWordComple
             cursor: everCompleted && hasNext ? "pointer" : "not-allowed",
           }}
         >
-          다음 <ChevronRight size={18} />
+          Next <ChevronRight size={18} />
         </button>
       </div>
     </div>
@@ -1407,7 +1484,7 @@ function GameMenuScreen({ onHome }) {
 }
 
 // ============ 설정 화면 ============
-function SettingsScreen({ tab, setTab, onHome, dailyGoal, setDailyGoal, studentInfo }) {
+function SettingsScreen({ tab, setTab, onHome, dailyGoal, setDailyGoal, studentInfo, cycleData }) {
   return (
     <div className="w-full h-full flex flex-col" style={{ background: "#FBF7EF" }}>
       <div className="flex items-center justify-between px-5 py-4" style={{ background: "#1E3A5F" }}>
@@ -1424,7 +1501,7 @@ function SettingsScreen({ tab, setTab, onHome, dailyGoal, setDailyGoal, studentI
       </div>
 
       <div className="flex-1 overflow-y-auto p-5">
-        {tab === "log" ? <LearningLogPanel studentInfo={studentInfo} /> : <SettingPanel dailyGoal={dailyGoal} setDailyGoal={setDailyGoal} />}
+        {tab === "log" ? <LearningLogPanel studentInfo={studentInfo} cycleData={cycleData} /> : <SettingPanel dailyGoal={dailyGoal} setDailyGoal={setDailyGoal} />}
       </div>
     </div>
   );
@@ -1442,16 +1519,19 @@ function TabButton({ active, onClick, label }) {
   );
 }
 
-function LearningLogPanel({ studentInfo }) {
-  // TODO: Cycles/Current cycle/Last try는 실제 학습 기록(진행 로그)을 집계해서
-  // 채워야 합니다. 지금은 이름만 실제 값이고 나머지는 자리표시(placeholder)예요.
+const TOTAL_CYCLES = 10;
+
+function LearningLogPanel({ studentInfo, cycleData }) {
   const name = studentInfo ? studentInfo.name : "(학생 링크로 접속하면 이름이 표시돼요)";
+  const current = (cycleData && cycleData.current) || 1;
+  const lastTry = cycleData && cycleData.lastTry;
+  const cycleLabel = (n) => n + (n === 1 ? " cycle" : " cycles");
   return (
     <div className="max-w-md space-y-3">
       <LogRow icon={<User size={16} />} label="Name" value={name} />
-      <LogRow icon={<TrendingUp size={16} />} label="Cycles" value="-" />
-      <LogRow icon={<TrendingUp size={16} />} label="Current cycle" value="-" />
-      <LogRow icon={<Calendar size={16} />} label="Last try" value="-" />
+      <LogRow icon={<TrendingUp size={16} />} label="Cycles" value={cycleLabel(TOTAL_CYCLES)} />
+      <LogRow icon={<TrendingUp size={16} />} label="Current cycle" value={cycleLabel(current)} />
+      <LogRow icon={<Calendar size={16} />} label="Last try" value={lastTry || "-"} />
     </div>
   );
 }
