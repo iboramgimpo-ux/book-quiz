@@ -926,9 +926,17 @@ function AdminUploadTool() {
         >
           학생 링크
         </button>
+        <button
+          onClick={() => setMainTab("bulk")}
+          className="px-4 py-2 rounded-t-lg text-sm font-semibold border-b-2 transition"
+          style={{ color: mainTab === "bulk" ? "#1E3A5F" : "#8A7F68", borderColor: mainTab === "bulk" ? "#D9A441" : "transparent", background: mainTab === "bulk" ? "white" : "transparent" }}
+        >
+          음성/이미지 일괄 업로드
+        </button>
       </div>
 
       {mainTab === "students" && <StudentLinksPanel />}
+      {mainTab === "bulk" && <BulkZipUploadPanel allWords={words} />}
 
       {mainTab === "words" && (
       <>
@@ -1571,6 +1579,192 @@ function PasswordGate({ children }) {
           입장하기
         </button>
       </form>
+    </div>
+  );
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// zip 안의 파일명에서 코드(단어 앞글자)와 종류를 추출합니다.
+// 규칙: <코드><숫자*>M(<숫자*><S|W|D>)?.<png|jpg|jpeg|mp3>
+//   예) GOAT0M.png = 이미지, GOAT0M0W.mp3 = 단어발음, GOAT0M0D.mp3 = 정의음성, GOAT0M0S.mp3 = 예문음성
+const BULK_FILE_RE = /^([A-Z]{2,4})\d*M(?:\d*([SWD]))?\.(png|jpg|jpeg|mp3)$/i;
+
+function BulkZipUploadPanel({ allWords }) {
+  const [file, setFile] = useState(null);
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [log, setLog] = useState([]);
+  const [skipped, setSkipped] = useState([]);
+  const [conflicts, setConflicts] = useState([]);
+
+  const handleRun = async () => {
+    if (!file || running) return;
+    setRunning(true);
+    setLog([]);
+    setSkipped([]);
+    setConflicts([]);
+    try {
+      const zip = await JSZip.loadAsync(file);
+
+      // 1) "코드 -> 단어" 매핑 생성 (코드 = 단어 앞 4글자 대문자, 4글자보다 짧은 단어는 전체)
+      const codeToWord = {};
+      const conflictList = [];
+      for (const w of allWords) {
+        const code = w.word.slice(0, 4).toUpperCase();
+        if (codeToWord[code] && codeToWord[code] !== w.word) {
+          conflictList.push(code + " → " + codeToWord[code] + " / " + w.word + " 코드 중복 (뒤에 나온 " + w.word + "는 건너뜀)");
+          continue;
+        }
+        codeToWord[code] = w.word;
+      }
+      setConflicts(conflictList);
+
+      // 2) zip 안 파일들을 코드별로 묶기
+      const groups = {};
+      const unmatched = [];
+      const entries = Object.keys(zip.files)
+        .map((k) => zip.files[k])
+        .filter((f) => !f.dir);
+
+      for (const entry of entries) {
+        const base = entry.name.split("/").pop();
+        const m = base.match(BULK_FILE_RE);
+        if (!m) { unmatched.push(entry.name + " (형식 인식 불가)"); continue; }
+        const code = m[1].toUpperCase();
+        const kind = m[2];
+        const ext = m[3].toLowerCase();
+        if (!groups[code]) groups[code] = {};
+        if (ext === "png" || ext === "jpg" || ext === "jpeg") {
+          groups[code].imageEntry = entry;
+        } else if (kind === "W") {
+          groups[code].wordAudioEntry = entry;
+        } else if (kind === "D") {
+          groups[code].definitionAudioEntry = entry;
+        } else if (kind === "S") {
+          groups[code].exampleAudioEntry = entry;
+        } else {
+          unmatched.push(entry.name + " (음성 종류 불명)");
+        }
+      }
+
+      const codes = Object.keys(groups);
+      setProgress({ done: 0, total: codes.length });
+
+      const matchedLog = [];
+      const skipReasons = [];
+
+      for (let i = 0; i < codes.length; i++) {
+        const code = codes[i];
+        const word = codeToWord[code];
+        if (!word) {
+          skipReasons.push("코드 " + code + ": 단어 목록에서 일치하는 단어를 찾지 못함");
+          setProgress({ done: i + 1, total: codes.length });
+          continue;
+        }
+        const g = groups[code];
+        const updates = {};
+        const appliedFields = [];
+        try {
+          if (g.imageEntry) {
+            updates.image = await blobToDataUrl(await g.imageEntry.async("blob"));
+            appliedFields.push("이미지");
+          }
+          if (g.wordAudioEntry) {
+            updates.wordAudio = await blobToDataUrl(await g.wordAudioEntry.async("blob"));
+            appliedFields.push("단어발음");
+          }
+          if (g.definitionAudioEntry) {
+            updates.definitionAudio = await blobToDataUrl(await g.definitionAudioEntry.async("blob"));
+            appliedFields.push("정의음성");
+          }
+          if (g.exampleAudioEntry) {
+            updates.exampleAudio = await blobToDataUrl(await g.exampleAudioEntry.async("blob"));
+            appliedFields.push("예문음성");
+          }
+          if (appliedFields.length > 0) {
+            let existing = {};
+            try {
+              const r = await window.storage.get("media:" + word, false);
+              if (r && r.value) existing = JSON.parse(r.value);
+            } catch (e) {}
+            const merged = { ...existing, ...updates };
+            await window.storage.set("media:" + word, JSON.stringify(merged), false);
+            matchedLog.push(word + " (" + code + "): " + appliedFields.join(", "));
+          }
+        } catch (err) {
+          skipReasons.push(word + " (" + code + "): 저장 실패 - " + err.message);
+        }
+        setProgress({ done: i + 1, total: codes.length });
+      }
+
+      setLog(matchedLog);
+      setSkipped([...skipReasons, ...unmatched]);
+    } catch (e) {
+      alert("업로드 중 오류가 발생했어요: " + e.message);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto px-5 py-6">
+      <div className="bg-white rounded-xl p-5 border" style={{ borderColor: "#E7E1D3" }}>
+        <h2 className="text-base font-bold mb-2" style={{ color: "#1E3A5F" }}>음성/이미지 zip 일괄 업로드</h2>
+        <p className="text-sm mb-4" style={{ color: "#5B6B7F" }}>
+          zip 안의 파일명 앞 4글자를 단어의 앞 4글자와 자동으로 매칭합니다. 접미사 규칙: <b>0W</b>=단어 발음,{" "}
+          <b>0D</b>=정의 음성, <b>0S</b>=예문 음성, <b>.png/.jpg</b>=이미지. 이미 등록된 효과음 등 다른 정보는 그대로 유지되고,
+          zip에 있는 항목만 덮어씁니다.
+        </p>
+        <input
+          type="file"
+          accept=".zip"
+          onChange={(e) => setFile(e.target.files[0] || null)}
+          className="text-sm mb-3 block"
+        />
+        <button
+          onClick={handleRun}
+          disabled={!file || running}
+          className="px-4 py-2 rounded-lg text-sm font-semibold"
+          style={{ background: file && !running ? "#D9A441" : "#E7E1D3", color: "#1E3A5F" }}
+        >
+          {running ? "업로드 중... (" + progress.done + "/" + progress.total + ")" : "일괄 업로드 시작"}
+        </button>
+
+        {conflicts.length > 0 && (
+          <div className="mt-4 text-xs" style={{ color: "#B45309" }}>
+            <b>단어 코드 중복 경고 ({conflicts.length}건)</b>
+            <ul className="list-disc pl-5 mt-1 max-h-48 overflow-auto">
+              {conflicts.slice(0, 30).map((c, i) => <li key={i}>{c}</li>)}
+            </ul>
+          </div>
+        )}
+
+        {log.length > 0 && (
+          <div className="mt-4 text-xs" style={{ color: "#1E3A5F" }}>
+            <b>업로드 완료 ({log.length}개 단어)</b>
+            <ul className="list-disc pl-5 mt-1 max-h-60 overflow-auto">
+              {log.map((l, i) => <li key={i}>{l}</li>)}
+            </ul>
+          </div>
+        )}
+
+        {skipped.length > 0 && (
+          <div className="mt-4 text-xs" style={{ color: "#8A7F68" }}>
+            <b>건너뜀 ({skipped.length}건)</b>
+            <ul className="list-disc pl-5 mt-1 max-h-60 overflow-auto">
+              {skipped.slice(0, 100).map((s, i) => <li key={i}>{s}</li>)}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

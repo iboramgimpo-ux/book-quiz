@@ -472,6 +472,9 @@ function StudentApp() {
   const [settingsTab, setSettingsTab] = useState("log"); // log | setting
   const [dailyGoal, setDailyGoal] = useState(30);
   const [media, setMedia] = useState({});
+  const [wordEdits, setWordEdits] = useState({}); // admin에서 수정한 뜻/영영풀이/예문
+  const [deletedWords, setDeletedWords] = useState([]); // admin에서 삭제한 단어
+  const [addedWords, setAddedWords] = useState([]); // admin에서 추가한 단어
   const [studentInfo, setStudentInfo] = useState(null); // {id, name, ...} or null(guest)
   const [todayWords, setTodayWords] = useState([]); // 오늘 완료한 단어 목록
   const [showGoalModal, setShowGoalModal] = useState(false);
@@ -486,14 +489,28 @@ function StudentApp() {
   const progressKey = "today-progress:" + studentId;
   const cycleKey = "cycle-data:" + studentId;
 
+  // admin.html의 word-edits(수정)/added-words(추가)/deleted-words(삭제)를 SAMPLE_WORDS 위에 합쳐서
+  // 최종적으로 학생이 보는 단어 목록을 만듭니다. (이 병합이 빠져 있던 것이 텍스트 미반영 버그의 원인)
+  const applyEdit = (w) => {
+    const e = wordEdits[w.word];
+    return e ? { ...w, ...e } : w;
+  };
+  const words = useMemo(() => {
+    const deletedSet = new Set(deletedWords);
+    const base = SAMPLE_WORDS.filter((w) => !deletedSet.has(w.word)).map(applyEdit);
+    const addedFiltered = addedWords.filter((w) => !deletedSet.has(w.word)).map(applyEdit);
+    return [...base, ...addedFiltered];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wordEdits, deletedWords, addedWords]);
+
   const sortedWords = useMemo(
-    () => [...SAMPLE_WORDS].sort((a, b) => a.word.localeCompare(b.word)),
-    []
+    () => [...words].sort((a, b) => a.word.localeCompare(b.word)),
+    [words]
   );
   const letters = useMemo(() => {
-    const set = new Set(SAMPLE_WORDS.map((w) => w.word[0].toUpperCase()));
+    const set = new Set(words.map((w) => w.word[0].toUpperCase()));
     return "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").filter((l) => set.has(l));
-  }, []);
+  }, [words]);
 
   const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -525,6 +542,20 @@ function StudentApp() {
           }
           setMedia(obj);
         }
+      } catch (e) {}
+      // admin.html에서 수정/추가/삭제한 단어 정보를 불러옵니다.
+      // (이 부분이 빠져 있어서 admin에서 영영풀이를 고쳐도 학생 화면에 반영되지 않았습니다)
+      try {
+        const edits = await window.storage.get("word-edits", false);
+        if (edits && edits.value) setWordEdits(JSON.parse(edits.value));
+      } catch (e) {}
+      try {
+        const del = await window.storage.get("deleted-words", false);
+        if (del && del.value) setDeletedWords(JSON.parse(del.value));
+      } catch (e) {}
+      try {
+        const add = await window.storage.get("added-words", false);
+        if (add && add.value) setAddedWords(JSON.parse(add.value));
       } catch (e) {}
       try {
         const g = await window.storage.get(goalKey, false);
@@ -654,6 +685,7 @@ function StudentApp() {
           onHome={goHome}
           onOpenWord={(w) => navigate("study", w)}
           media={media}
+          words={words}
         />
       )}
       {screen === "study" && studyWord && (
@@ -780,11 +812,11 @@ function MenuTile({ icon, label, onClick, color }) {
 }
 
 // ============ 사전 화면 ============
-function DictionaryScreen({ letter, setLetter, letters, onHome, onOpenWord, media }) {
+function DictionaryScreen({ letter, setLetter, letters, onHome, onOpenWord, media, words }) {
   const idx = letters.indexOf(letter);
   const prevLetter = () => idx > 0 && setLetter(letters[idx - 1]);
   const nextLetter = () => idx < letters.length - 1 && setLetter(letters[idx + 1]);
-  const wordsForLetter = SAMPLE_WORDS.filter((w) => w.word[0].toUpperCase() === letter);
+  const wordsForLetter = words.filter((w) => w.word[0].toUpperCase() === letter);
 
   return (
     <div className="w-full h-full flex flex-col" style={{ background: "#FBF7EF" }}>
@@ -1082,6 +1114,15 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onGoDictiona
     }
   }, [speak, stopAll]);
 
+  // 정의(definitionAudio)와 예문(exampleAudio)이 각각 별도 음성파일로 있을 수 있으므로
+  // 순서대로 이어서 재생합니다. (음성이 없는 쪽은 TTS로 대체)
+  const playDefAndExample = useCallback((onend) => {
+    playAudioOrTts(m.definitionAudio, word.defn, () => {
+      playAudioOrTts(m.exampleAudio, word.example, onend);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [playAudioOrTts, m.definitionAudio, m.exampleAudio, word.defn, word.example]);
+
   useEffect(() => {
     stopAll();
     stopEffects();
@@ -1139,7 +1180,7 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onGoDictiona
 
   useEffect(() => {
     if (stage === "definition") {
-      playAudioOrTts(m.definitionAudio, word.defn + " " + word.example, () => setStage("done"));
+      playDefAndExample(() => setStage("done"));
     } else if (stage === "done") {
       setEverCompleted(true);
       onWordComplete && onWordComplete(word.word);
@@ -1152,7 +1193,7 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onGoDictiona
     setAnimPlaying(false);
     requestAnimationFrame(() => setAnimPlaying(true));
   };
-  const tapDef = () => playAudioOrTts(m.definitionAudio, word.defn + " " + word.example, () => {});
+  const tapDef = () => playDefAndExample(() => {});
 
   // 회전 여부와 상관없이 "화면에 보이는 그대로의" 가로/세로를 기준으로 정사각형 한 변 길이를 px로 계산
   // (회전된 박스 안에서는 CSS vh/vw가 실제 시각적 크기와 어긋나서 그림이 정사각형으로 안 보이는 문제 해결)
