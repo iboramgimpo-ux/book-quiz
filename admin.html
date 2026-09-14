@@ -502,6 +502,7 @@ function AdminUploadTool() {
   const [previewPlaying, setPreviewPlaying] = useState(false);
   const [status, setStatus] = useState("");
   const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(""); // 그림/음성 목록 불러오기 실패 시 원인을 화면에 보여줍니다
   const [showAddForm, setShowAddForm] = useState(false);
   const [newWordForm, setNewWordForm] = useState({ word: "", gloss: "", defn: "", example: "" });
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -536,6 +537,7 @@ function AdminUploadTool() {
         const keysRes = await window.storage.list("media:", true);
         if (keysRes && keysRes.keys && keysRes.keys.length) {
           const mediaObj = {};
+          const getFailures = [];
           for (const k of keysRes.keys) {
             try {
               const r = await window.storage.get(k, true);
@@ -543,11 +545,30 @@ function AdminUploadTool() {
                 const w = k.replace("media:", "");
                 mediaObj[w] = JSON.parse(r.value);
               }
-            } catch (e) {}
+            } catch (e) {
+              getFailures.push(k + ": " + (e && e.message ? e.message : String(e)));
+            }
           }
           setMedia(mediaObj);
+          if (getFailures.length) {
+            console.warn("[media load] 일부 단어의 그림/음성을 불러오지 못했습니다:\n" + getFailures.join("\n"));
+            setLoadError(
+              "일부 단어(" + getFailures.length + "개)의 그림/음성을 서버에서 불러오지 못했어요. " +
+              "개발자 도구(콘솔)에서 자세한 오류를 확인해주세요."
+            );
+          }
+        } else {
+          // 키 목록 자체가 비어있음: 실제로 저장된 게 없는 것인지,
+          // list() 쿼리 자체가 (권한 등의 이유로) 조용히 빈 배열을 돌려준 것인지 구분이 안 되므로 표시는 하지 않습니다.
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error("[media load] media: 목록을 불러오지 못했습니다.", e);
+        setLoadError(
+          "그림/음성 목록을 서버에서 불러오지 못했어요 (" + (e && e.message ? e.message : String(e)) + "). " +
+          "Firestore 보안 규칙(rules)에서 'kv' 컬렉션의 목록 조회(list/query)가 막혀 있을 수 있어요. " +
+          "개별 저장은 성공했다고 나와도, 이 화면에 그림/음성이 0개로 보이는 가장 흔한 원인입니다."
+        );
+      }
       try {
         const del = await window.storage.get("deleted-words", true);
         if (del && del.value) setDeletedWords(JSON.parse(del.value));
@@ -1107,6 +1128,19 @@ function AdminUploadTool() {
 
       {mainTab === "words" && (
       <>
+      {loadError && (
+        <div className="max-w-6xl mx-auto px-5 pt-3">
+          <div className="text-xs p-3 rounded-lg" style={{ background: "#FEF3E2", color: "#92400E", border: "1px solid #F5D48A" }}>
+            <b>⚠ 저장된 그림/음성을 불러오는 중 문제가 있었어요.</b> {loadError}
+            <button
+              onClick={() => window.location.reload()}
+              className="ml-2 underline font-semibold"
+            >
+              새로고침해서 다시 시도
+            </button>
+          </div>
+        </div>
+      )}
       <div className="sm:hidden px-5 py-2 text-xs flex gap-4" style={{ color: "#5B6B7F" }}>
         <span>그림 {stats.img}/{stats.total}</span>
         <span>풀이음성 {stats.aud}/{stats.total}</span>
