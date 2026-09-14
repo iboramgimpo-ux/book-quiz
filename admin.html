@@ -632,6 +632,69 @@ function AdminUploadTool() {
       reader.readAsDataURL(file);
     });
 
+  // ---- 이미지 자동 압축 (업로드 용량이 크면 자동으로 900KB 이하로 낮춤) ----
+  const MAX_IMAGE_BYTES = 900 * 1024;
+
+  const compressImageFile = (file, maxBytes = MAX_IMAGE_BYTES) =>
+    new Promise((resolve, reject) => {
+      const url = URL.createObjectURL(file);
+      const img = new window.Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        const renderAt = (w, h) => {
+          canvas.width = w;
+          canvas.height = h;
+          ctx.clearRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+        };
+
+        const toBlobAt = (w, h, quality) =>
+          new Promise((res) => {
+            renderAt(w, h);
+            canvas.toBlob((blob) => res(blob), "image/jpeg", quality);
+          });
+
+        (async () => {
+          let w = img.naturalWidth || img.width;
+          let h = img.naturalHeight || img.height;
+          let quality = 0.9;
+          let blob = await toBlobAt(w, h, quality);
+
+          // 1) 품질을 낮춰가며 용량을 줄여본다
+          while (blob && blob.size > maxBytes && quality > 0.35) {
+            quality -= 0.1;
+            blob = await toBlobAt(w, h, quality);
+          }
+
+          // 2) 그래도 크면 가로/세로를 단계적으로 줄여가며 다시 시도한다
+          let guard = 0;
+          while (blob && blob.size > maxBytes && w > 300 && h > 300 && guard < 12) {
+            w = Math.round(w * 0.85);
+            h = Math.round(h * 0.85);
+            quality = 0.85;
+            blob = await toBlobAt(w, h, quality);
+            let q2 = quality;
+            while (blob && blob.size > maxBytes && q2 > 0.35) {
+              q2 -= 0.1;
+              blob = await toBlobAt(w, h, q2);
+            }
+            guard++;
+          }
+
+          if (!blob) { reject(new Error("compress failed")); return; }
+          resolve(blob);
+        })();
+      };
+      img.onerror = () => {
+        URL.revokeObjectURL(url);
+        reject(new Error("image load failed"));
+      };
+      img.src = url;
+    });
+
   // ---- 전체 다운로드 (그림 / 효과음 / 엑셀) ----
   const [bulkDownloading, setBulkDownloading] = useState(""); // "" | "images" | "sounds" | "excel"
 
@@ -872,9 +935,25 @@ function AdminUploadTool() {
   const handleImageUpload = async (file) => {
     if (!file) return;
     try {
-      const dataUrl = await readFileAsDataUrl(file);
+      let toRead = file;
+      let compressedNote = "";
+
+      if (file.size > MAX_IMAGE_BYTES) {
+        try {
+          const compressedBlob = await compressImageFile(file);
+          if (compressedBlob && compressedBlob.size < file.size) {
+            toRead = compressedBlob;
+            compressedNote = `그림 용량을 ${Math.round(file.size / 1024)}KB → ${Math.round(compressedBlob.size / 1024)}KB로 자동으로 줄였어요`;
+          }
+        } catch (compressErr) {
+          // 압축에 실패하면 원본 그대로 업로드를 시도한다
+        }
+      }
+
+      const dataUrl = await readFileAsDataUrl(toRead);
       setPendingMedia((prev) => ({ ...prev, image: dataUrl }));
       setSaveResult(null);
+      if (compressedNote) flash(compressedNote, false);
     } catch (e) {
       flash("그림을 읽지 못했어요", true);
     }
