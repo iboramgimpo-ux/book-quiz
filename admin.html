@@ -445,12 +445,12 @@ function AdminUploadTool() {
   useEffect(() => {
     (async () => {
       try {
-        const keysRes = await window.storage.list("media:", false);
+        const keysRes = await window.storage.list("media:", true);
         if (keysRes && keysRes.keys && keysRes.keys.length) {
           const mediaObj = {};
           for (const k of keysRes.keys) {
             try {
-              const r = await window.storage.get(k, false);
+              const r = await window.storage.get(k, true);
               if (r && r.value) {
                 const w = k.replace("media:", "");
                 mediaObj[w] = JSON.parse(r.value);
@@ -461,15 +461,15 @@ function AdminUploadTool() {
         }
       } catch (e) {}
       try {
-        const del = await window.storage.get("deleted-words", false);
+        const del = await window.storage.get("deleted-words", true);
         if (del && del.value) setDeletedWords(JSON.parse(del.value));
       } catch (e) {}
       try {
-        const add = await window.storage.get("added-words", false);
+        const add = await window.storage.get("added-words", true);
         if (add && add.value) setAddedWords(JSON.parse(add.value));
       } catch (e) {}
       try {
-        const edits = await window.storage.get("word-edits", false);
+        const edits = await window.storage.get("word-edits", true);
         if (edits && edits.value) setWordEdits(JSON.parse(edits.value));
       } catch (e) {}
       setLoaded(true);
@@ -482,7 +482,7 @@ function AdminUploadTool() {
     setConfirmDelete(null);
     if (selectedWord && selectedWord.word === word) setSelectedWord(null);
     try {
-      await window.storage.set("deleted-words", JSON.stringify(next), false);
+      await window.storage.set("deleted-words", JSON.stringify(next), true);
       flash(word + " 삭제됨");
     } catch (e) {
       flash("삭제 저장 실패", true);
@@ -505,7 +505,7 @@ function AdminUploadTool() {
     const next = [...addedWords, entry];
     setAddedWords(next);
     try {
-      await window.storage.set("added-words", JSON.stringify(next), false);
+      await window.storage.set("added-words", JSON.stringify(next), true);
       flash(w + " 추가됨");
       setNewWordForm({ word: "", gloss: "", defn: "", example: "" });
       setShowAddForm(false);
@@ -832,7 +832,7 @@ function AdminUploadTool() {
     setSaving(true);
     setSaveResult(null);
     try {
-      const res = await window.storage.set("media:" + selectedWord.word, JSON.stringify(pendingMedia), false);
+      const res = await window.storage.set("media:" + selectedWord.word, JSON.stringify(pendingMedia), true);
       if (res && res.value) {
         const savedValue = JSON.parse(res.value); // Storage 업로드 후 실제 URL로 치환된 값
         setMedia((prev) => ({ ...prev, [selectedWord.word]: savedValue }));
@@ -858,7 +858,7 @@ function AdminUploadTool() {
             example: pendingFields.example.trim() || "(예문을 입력해주세요)",
           },
         };
-        await window.storage.set("word-edits", JSON.stringify(nextEdits), false);
+        await window.storage.set("word-edits", JSON.stringify(nextEdits), true);
         setWordEdits(nextEdits);
         setSelectedWord((prev) => (prev ? { ...prev, ...nextEdits[selectedWord.word] } : prev));
       }
@@ -1692,11 +1692,11 @@ function BulkZipUploadPanel({ allWords }) {
           if (appliedFields.length > 0) {
             let existing = {};
             try {
-              const r = await window.storage.get("media:" + word, false);
+              const r = await window.storage.get("media:" + word, true);
               if (r && r.value) existing = JSON.parse(r.value);
             } catch (e) {}
             const merged = { ...existing, ...updates };
-            await window.storage.set("media:" + word, JSON.stringify(merged), false);
+            await window.storage.set("media:" + word, JSON.stringify(merged), true);
             matchedLog.push(word + " (" + code + "): " + appliedFields.join(", "));
           }
         } catch (err) {

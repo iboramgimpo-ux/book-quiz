@@ -531,12 +531,12 @@ function StudentApp() {
   useEffect(() => {
     (async () => {
       try {
-        const keysRes = await window.storage.list("media:", false);
+        const keysRes = await window.storage.list("media:", true);
         if (keysRes && keysRes.keys) {
           const obj = {};
           for (const k of keysRes.keys) {
             try {
-              const r = await window.storage.get(k, false);
+              const r = await window.storage.get(k, true);
               if (r && r.value) obj[k.replace("media:", "")] = JSON.parse(r.value);
             } catch (e) {}
           }
@@ -546,15 +546,15 @@ function StudentApp() {
       // admin.html에서 수정/추가/삭제한 단어 정보를 불러옵니다.
       // (이 부분이 빠져 있어서 admin에서 영영풀이를 고쳐도 학생 화면에 반영되지 않았습니다)
       try {
-        const edits = await window.storage.get("word-edits", false);
+        const edits = await window.storage.get("word-edits", true);
         if (edits && edits.value) setWordEdits(JSON.parse(edits.value));
       } catch (e) {}
       try {
-        const del = await window.storage.get("deleted-words", false);
+        const del = await window.storage.get("deleted-words", true);
         if (del && del.value) setDeletedWords(JSON.parse(del.value));
       } catch (e) {}
       try {
-        const add = await window.storage.get("added-words", false);
+        const add = await window.storage.get("added-words", true);
         if (add && add.value) setAddedWords(JSON.parse(add.value));
       } catch (e) {}
       try {
