@@ -346,10 +346,20 @@ window.storage = {
     // 위의 set() 자체는 에러 없이 "성공한 것처럼" 끝나버릴 수 있습니다.
     // (바로 이게 "저장됐다고 나오는데 사진/소리가 사라진다"는 증상의 원인입니다.)
     // { source: "server" }로 캐시를 건너뛰고 서버에서 직접 다시 읽어 확인합니다.
+    // ⚠️ 예전 코드는 "본문(매니페스트)" 문서만 확인했습니다. 그림·음성처럼 큰 파일은
+    // 별도 문서(k + "__" + field)로 분리 저장되는데, 그 문서가 실제로 서버에
+    // 저장됐는지는 확인하지 않아서 "저장 완료"라고 뜨는데도 그림/음성만 빠지는
+    // 문제가 있었습니다. 이제 분리된 문서까지 전부 서버에서 다시 읽어 확인합니다.
     try {
       const verifyDoc = await db.collection("kv").doc(k).get({ source: "server" });
       if (!verifyDoc.exists) {
         throw new Error("문서가 서버에 저장되지 않았어요.");
+      }
+      for (const field of external) {
+        const verifySub = await db.collection("kv").doc(k + "__" + field).get({ source: "server" });
+        if (!verifySub.exists) {
+          throw new Error("'" + field + "' 파일이 서버에 저장되지 않았어요.");
+        }
       }
     } catch (verifyErr) {
       throw new Error(
@@ -388,11 +398,30 @@ window.storage = {
       obj = data.value;
     }
     if (data.external && data.external.length && obj && typeof obj === "object") {
+      // ⚠️ 예전 코드는 분리 문서를 못 읽어와도 catch(e){}로 조용히 무시해서,
+      // 그림/음성이 서버에 있든 없든 아무 표시 없이 그냥 빠진 채로 반환됐습니다.
+      // 이제 서버에서 우선 읽고(source:"server"), 실패하면 콘솔에 경고를 남깁니다.
+      const missingFields = [];
       for (const field of data.external) {
+        let sub = null;
         try {
-          const sub = await db.collection("kv").doc(k + "__" + field).get();
-          if (sub.exists) obj[field] = sub.data().value;
-        } catch (e) {}
+          sub = await db.collection("kv").doc(k + "__" + field).get({ source: "server" });
+        } catch (e) {
+          try {
+            sub = await db.collection("kv").doc(k + "__" + field).get();
+          } catch (e2) {
+            missingFields.push(field);
+            continue;
+          }
+        }
+        if (sub && sub.exists) {
+          obj[field] = sub.data().value;
+        } else {
+          missingFields.push(field);
+        }
+      }
+      if (missingFields.length) {
+        console.warn("[storage.get] '" + key + "'의 다음 필드를 서버에서 찾지 못했습니다: " + missingFields.join(", "));
       }
     }
     const finalValue = obj && typeof obj === "object" && obj.__raw !== undefined ? obj.__raw : JSON.stringify(obj);
@@ -981,7 +1010,7 @@ function AdminUploadTool() {
           className="px-4 py-2 rounded-t-lg text-sm font-semibold border-b-2 transition"
           style={{ color: mainTab === "bulk" ? "#1E3A5F" : "#8A7F68", borderColor: mainTab === "bulk" ? "#D9A441" : "transparent", background: mainTab === "bulk" ? "white" : "transparent" }}
         >
-          음성/이미지 일괄 업로드
+          단어소리/영영풀이 일괄 업로드
         </button>
       </div>
 
@@ -1643,9 +1672,9 @@ function blobToDataUrl(blob) {
 }
 
 // zip 안의 파일명에서 코드(단어 앞글자)와 종류를 추출합니다.
-// 규칙: <코드><숫자*>M(<숫자*><S|W|D>)?.<png|jpg|jpeg|mp3>
-//   예) GOAT0M.png = 이미지, GOAT0M0W.mp3 = 단어발음, GOAT0M0D.mp3 = 정의음성, GOAT0M0S.mp3 = 예문음성
-const BULK_FILE_RE = /^([A-Z]{2,4})\d*M(?:\d*([SWD]))?\.(png|jpg|jpeg|mp3)$/i;
+// 규칙: <코드><숫자*>M<숫자*><W|D>.mp3
+//   예) GOAT0M0W.mp3 = 단어발음, GOAT0M0D.mp3 = 정의음성 (영영풀이)
+const BULK_FILE_RE = /^([A-Z]{2,4})\d*M\d*([WD])\.mp3$/i;
 
 function BulkZipUploadPanel({ allWords }) {
   const [file, setFile] = useState(null);
@@ -1687,19 +1716,14 @@ function BulkZipUploadPanel({ allWords }) {
       for (const entry of entries) {
         const base = entry.name.split("/").pop();
         const m = base.match(BULK_FILE_RE);
-        if (!m) { unmatched.push(entry.name + " (형식 인식 불가)"); continue; }
+        if (!m) { unmatched.push(entry.name + " (형식 인식 불가 - W/D 음성 mp3만 지원)"); continue; }
         const code = m[1].toUpperCase();
-        const kind = m[2];
-        const ext = m[3].toLowerCase();
+        const kind = m[2].toUpperCase();
         if (!groups[code]) groups[code] = {};
-        if (ext === "png" || ext === "jpg" || ext === "jpeg") {
-          groups[code].imageEntry = entry;
-        } else if (kind === "W") {
+        if (kind === "W") {
           groups[code].wordAudioEntry = entry;
         } else if (kind === "D") {
           groups[code].definitionAudioEntry = entry;
-        } else if (kind === "S") {
-          groups[code].exampleAudioEntry = entry;
         } else {
           unmatched.push(entry.name + " (음성 종류 불명)");
         }
@@ -1723,10 +1747,6 @@ function BulkZipUploadPanel({ allWords }) {
         const updates = {};
         const appliedFields = [];
         try {
-          if (g.imageEntry) {
-            updates.image = await blobToDataUrl(await g.imageEntry.async("blob"));
-            appliedFields.push("이미지");
-          }
           if (g.wordAudioEntry) {
             updates.wordAudio = await blobToDataUrl(await g.wordAudioEntry.async("blob"));
             appliedFields.push("단어발음");
@@ -1734,10 +1754,6 @@ function BulkZipUploadPanel({ allWords }) {
           if (g.definitionAudioEntry) {
             updates.definitionAudio = await blobToDataUrl(await g.definitionAudioEntry.async("blob"));
             appliedFields.push("정의음성");
-          }
-          if (g.exampleAudioEntry) {
-            updates.exampleAudio = await blobToDataUrl(await g.exampleAudioEntry.async("blob"));
-            appliedFields.push("예문음성");
           }
           if (appliedFields.length > 0) {
             let existing = {};
@@ -1767,11 +1783,11 @@ function BulkZipUploadPanel({ allWords }) {
   return (
     <div className="max-w-3xl mx-auto px-5 py-6">
       <div className="bg-white rounded-xl p-5 border" style={{ borderColor: "#E7E1D3" }}>
-        <h2 className="text-base font-bold mb-2" style={{ color: "#1E3A5F" }}>음성/이미지 zip 일괄 업로드</h2>
+        <h2 className="text-base font-bold mb-2" style={{ color: "#1E3A5F" }}>단어소리/영영풀이소리 zip 일괄 업로드</h2>
         <p className="text-sm mb-4" style={{ color: "#5B6B7F" }}>
           zip 안의 파일명 앞 4글자를 단어의 앞 4글자와 자동으로 매칭합니다. 접미사 규칙: <b>0W</b>=단어 발음,{" "}
-          <b>0D</b>=정의 음성, <b>0S</b>=예문 음성, <b>.png/.jpg</b>=이미지. 이미 등록된 효과음 등 다른 정보는 그대로 유지되고,
-          zip에 있는 항목만 덮어씁니다.
+          <b>0D</b>=영영풀이 음성 (mp3만 지원). 그림·효과음은 이 일괄 업로드에 포함되지 않으니 각 단어에서 직접 올려주세요.
+          이미 등록된 다른 정보는 그대로 유지되고, zip에 있는 항목만 덮어씁니다.
         </p>
         <input
           type="file"
