@@ -277,12 +277,23 @@ window.storage = {
     const external = [];
     const inline = {};
 
+    // 문자열 필드뿐 아니라 배열 필드(효과음 여러 개 등)도 실제 바이트 크기를 계산합니다.
+    // (예전 코드는 typeof v === "string"만 검사해서, 효과음 배열처럼 배열에 담긴
+    //  큰 데이터는 크기 검사도, 분리 저장도 되지 않고 무조건 본문에 합쳐져서
+    //  Firestore 문서 1MB 제한을 넘기면 저장이 조용히 실패하는 원인이었습니다.)
+    function fieldByteLength(v) {
+      if (typeof v === "string") return byteLength(v);
+      if (Array.isArray(v)) return byteLength(JSON.stringify(v));
+      return 0;
+    }
+
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
       for (const field of Object.keys(parsed)) {
         const v = parsed[field];
-        if (typeof v === "string" && byteLength(v) > MAX_FIELD_BYTES) {
+        const size = fieldByteLength(v);
+        if (size > MAX_FIELD_BYTES) {
           throw new Error(
-            "'" + field + "' 파일이 너무 커요 (약 " + Math.round(byteLength(v) / 1024) +
+            "'" + field + "' 파일이 너무 커요 (약 " + Math.round(size / 1024) +
             "KB). 900KB 이하로 압축해서 다시 올려주세요."
           );
         }
@@ -290,7 +301,7 @@ window.storage = {
       // 문서 전체가 커지지 않도록, 필드 하나당 200KB 넘으면 별도 문서로 분리
       for (const field of Object.keys(parsed)) {
         const v = parsed[field];
-        if (typeof v === "string" && byteLength(v) > 200 * 1024) {
+        if (fieldByteLength(v) > 200 * 1024) {
           external.push(field);
         } else {
           inline[field] = v;
@@ -298,6 +309,18 @@ window.storage = {
       }
     } else {
       inline.__raw = parsed;
+    }
+
+    // 본문(매니페스트) 문서에 들어갈 inline 데이터 전체 합계도 확인합니다.
+    // 필드 하나하나는 200KB 미만이라도, 여러 개를 합치면 Firestore 문서
+    // 1MB 제한을 넘을 수 있는데, 그러면 이 문서에 들어있는 다른 모든 정보
+    // (이미지, 발음, 정의음성 등)까지 통째로 저장이 실패합니다.
+    const inlineSize = byteLength(JSON.stringify(inline));
+    if (inlineSize > 850 * 1024) {
+      throw new Error(
+        "이 항목의 전체 데이터가 너무 커요 (약 " + Math.round(inlineSize / 1024) +
+        "KB). 이미지나 소리 파일 용량을 줄이거나 개수를 줄여서 다시 시도해주세요."
+      );
     }
 
     // 별도 문서로 분리된 필드 저장
@@ -317,6 +340,25 @@ window.storage = {
       updatedAt: Date.now(),
     });
 
+    // ⚠️ 실제로 서버에 저장됐는지 확인합니다.
+    // Firestore는 오프라인 캐시에 먼저 쓰고 나중에 서버와 동기화하기 때문에,
+    // 네트워크가 불안정하거나 보안 규칙(rules)이 쓰기를 막는 경우에도
+    // 위의 set() 자체는 에러 없이 "성공한 것처럼" 끝나버릴 수 있습니다.
+    // (바로 이게 "저장됐다고 나오는데 사진/소리가 사라진다"는 증상의 원인입니다.)
+    // { source: "server" }로 캐시를 건너뛰고 서버에서 직접 다시 읽어 확인합니다.
+    try {
+      const verifyDoc = await db.collection("kv").doc(k).get({ source: "server" });
+      if (!verifyDoc.exists) {
+        throw new Error("문서가 서버에 저장되지 않았어요.");
+      }
+    } catch (verifyErr) {
+      throw new Error(
+        "저장이 서버에 반영되지 않았어요 (" +
+        (verifyErr && verifyErr.message ? verifyErr.message : "확인 실패") +
+        "). 인터넷 연결을 확인한 뒤 다시 저장해주세요."
+      );
+    }
+
     // 호출한 쪽에서 바로 쓸 수 있도록 완전한 값을 재조합해서 반환
     const fullValue = parsed && typeof parsed === "object" && !Array.isArray(parsed)
       ? JSON.stringify(parsed)
@@ -326,7 +368,15 @@ window.storage = {
 
   async get(key, shared) {
     const k = sanitizeKey(key);
-    const doc = await db.collection("kv").doc(k).get();
+    // 항상 서버에서 최신 값을 먼저 시도합니다. (학생 화면에 수정 전 텍스트가
+    // 남아있던 문제는 오래된 캐시를 읽어서 생기는 경우가 많아, 캐시보다 서버를
+    // 우선하도록 했습니다. 완전히 오프라인일 때만 캐시로 대체합니다.)
+    let doc;
+    try {
+      doc = await db.collection("kv").doc(k).get({ source: "server" });
+    } catch (e) {
+      doc = await db.collection("kv").doc(k).get();
+    }
     if (!doc.exists) {
       throw new Error("not found: " + key);
     }
