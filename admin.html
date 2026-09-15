@@ -1145,6 +1145,7 @@ function AdminUploadTool() {
 
       {mainTab === "students" && <StudentLinksPanel />}
       {mainTab === "bulk" && <BulkZipUploadPanel allWords={words} />}
+      {mainTab === "bulk" && <BulkDeleteImagesPanel media={media} setMedia={setMedia} totalWords={words.length} />}
 
       {mainTab === "words" && (
       <>
@@ -1970,6 +1971,162 @@ function BulkZipUploadPanel({ allWords }) {
             <ul className="list-disc pl-5 mt-1 max-h-60 overflow-auto">
               {skipped.slice(0, 100).map((s, i) => <li key={i}>{s}</li>)}
             </ul>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// 그림(image)만 골라서 일괄 삭제합니다. 소리(wordAudio, definitionAudio, soundEffects)와
+// 텍스트(gloss/defn/example, word-edits)는 절대 건드리지 않습니다.
+function BulkDeleteImagesPanel({ media, setMedia, totalWords }) {
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState({ done: 0, total: 0 });
+  const [confirmChecked, setConfirmChecked] = useState(false);
+  const [confirmText, setConfirmText] = useState("");
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [result, setResult] = useState(null); // { deleted, skipped, errors }
+
+  const imageCount = useMemo(() => {
+    return Object.values(media || {}).filter((m) => m && m.image).length;
+  }, [media]);
+
+  const handleRun = async () => {
+    if (running) return;
+    setShowConfirm(false);
+    setRunning(true);
+    setResult(null);
+    try {
+      const keysRes = await window.storage.list("media:", true);
+      const keys = (keysRes && keysRes.keys) || [];
+      setProgress({ done: 0, total: keys.length });
+
+      const newMedia = { ...media };
+      const errors = [];
+      let deleted = 0;
+      let skipped = 0;
+      let done = 0;
+
+      await runWithConcurrency(keys, 20, async (k) => {
+        const word = k.replace("media:", "");
+        try {
+          const r = await window.storage.get(k, true);
+          let obj = {};
+          try {
+            obj = r && r.value ? JSON.parse(r.value) : {};
+          } catch (e) {
+            obj = {};
+          }
+          if (obj && obj.image) {
+            delete obj.image;
+            // 소리/텍스트는 obj에 그대로 남아있는 상태로 다시 저장 -> 그림만 제거됨
+            await window.storage.set(k, JSON.stringify(obj), true);
+            // 그림이 별도 문서로 분리 저장돼 있었을 경우, 그 잔여 문서도 함께 정리합니다.
+            try {
+              await db.collection("kv").doc(sanitizeKey(k) + "__image").delete();
+            } catch (e) {}
+            newMedia[word] = obj;
+            deleted++;
+          } else {
+            skipped++;
+          }
+        } catch (e) {
+          errors.push(word + ": " + (e && e.message ? e.message : String(e)));
+        }
+        done++;
+        setProgress({ done, total: keys.length });
+      });
+
+      setMedia(newMedia);
+      setResult({ deleted, skipped, errors });
+    } catch (e) {
+      setResult({ deleted: 0, skipped: 0, errors: ["전체 실패: " + (e && e.message ? e.message : String(e))] });
+    }
+    setRunning(false);
+    setConfirmChecked(false);
+    setConfirmText("");
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto px-5 py-2">
+      <div className="bg-white rounded-xl p-5 border" style={{ borderColor: "#E7E1D3" }}>
+        <h2 className="text-base font-bold mb-2" style={{ color: "#B91C1C" }}>그림 일괄 삭제 (되돌릴 수 없음)</h2>
+        <p className="text-sm mb-3" style={{ color: "#5B6B7F" }}>
+          현재 그림이 등록된 단어: <b>{imageCount}</b>개. 이 버튼은 <b>모든 단어의 그림만</b> 삭제합니다.
+          단어 발음, 영영풀이 음성, 효과음, 뜻/정의/예문 텍스트는 전혀 건드리지 않습니다.
+        </p>
+        <p className="text-xs mb-4" style={{ color: "#B45309" }}>
+          ⚠ 삭제 후에는 되돌릴 수 없어요. 먼저 위쪽 "그림 전체 다운로드" 버튼으로 백업해두시는 걸 권장합니다.
+        </p>
+
+        {!showConfirm && !running && (
+          <button
+            onClick={() => setShowConfirm(true)}
+            className="px-4 py-2 rounded-lg text-sm font-semibold"
+            style={{ background: "#FEE2E2", color: "#B91C1C", border: "1px solid #FCA5A5" }}
+          >
+            그림 일괄 삭제 시작하기
+          </button>
+        )}
+
+        {showConfirm && !running && (
+          <div className="p-3 rounded-lg" style={{ background: "#FEF2F2", border: "1px solid #FCA5A5" }}>
+            <label className="flex items-start gap-2 text-sm mb-2" style={{ color: "#7F1D1D" }}>
+              <input
+                type="checkbox"
+                checked={confirmChecked}
+                onChange={(e) => setConfirmChecked(e.target.checked)}
+                className="mt-1"
+              />
+              <span>{imageCount}개 단어의 그림을 전부 삭제하는 것에 동의합니다. 소리와 텍스트는 남아있어요.</span>
+            </label>
+            <p className="text-xs mb-1" style={{ color: "#7F1D1D" }}>확인을 위해 아래 칸에 "삭제"를 입력해주세요.</p>
+            <input
+              type="text"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              className="border rounded-lg px-3 py-1.5 text-sm mb-3 block"
+              style={{ borderColor: "#FCA5A5" }}
+              placeholder="삭제"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={handleRun}
+                disabled={!confirmChecked || confirmText.trim() !== "삭제"}
+                className="px-4 py-2 rounded-lg text-sm font-semibold disabled:opacity-40"
+                style={{ background: "#B91C1C", color: "white" }}
+              >
+                네, 그림 전체 삭제 실행
+              </button>
+              <button
+                onClick={() => { setShowConfirm(false); setConfirmChecked(false); setConfirmText(""); }}
+                className="px-4 py-2 rounded-lg text-sm font-semibold"
+                style={{ background: "white", color: "#5B6B7F", border: "1px solid #E4DCC9" }}
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        )}
+
+        {running && (
+          <p className="text-sm font-semibold" style={{ color: "#B91C1C" }}>
+            삭제 중... ({progress.done}/{progress.total})
+          </p>
+        )}
+
+        {result && (
+          <div className="mt-4 text-xs" style={{ color: "#1E3A5F" }}>
+            <p><b>완료:</b> {result.deleted}개 단어의 그림 삭제됨, {result.skipped}개는 그림이 없어서 건너뜀.</p>
+            {result.errors.length > 0 && (
+              <div className="mt-2" style={{ color: "#B45309" }}>
+                <b>오류 ({result.errors.length}건)</b>
+                <ul className="list-disc pl-5 mt-1 max-h-48 overflow-auto">
+                  {result.errors.slice(0, 50).map((e, i) => <li key={i}>{e}</li>)}
+                </ul>
+              </div>
+            )}
           </div>
         )}
       </div>
