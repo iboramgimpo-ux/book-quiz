@@ -544,6 +544,24 @@ const DEFAULT_DURATION = 1.6;
 const DAILY_OPTIONS = [10, 20, 30, 40, 50, 60];
 
 // ============ 앱 쉘 (화면 전환 + 뒤로가기 관리) ============
+// 여러 개의 비동기 작업(예: Firestore get 800개)을 "동시에 N개씩" 실행합니다.
+// 기존 코드는 for...of + await로 하나씩 순서대로 실행해서, 단어가 800~1200개면
+// 각 요청의 왕복 시간이 전부 더해져 페이지 로딩이 몇 분씩 걸리는 원인이었습니다.
+async function runWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  async function runner() {
+    while (nextIndex < items.length) {
+      const current = nextIndex++;
+      results[current] = await worker(items[current], current);
+    }
+  }
+  const runners = [];
+  for (let i = 0; i < Math.min(limit, items.length); i++) runners.push(runner());
+  await Promise.all(runners);
+  return results;
+}
+
 function StudentApp() {
   const [screen, setScreen] = useState("home"); // home | dictionary | game | settings | study | quiz
   const [dictLetter, setDictLetter] = useState("A");
@@ -622,12 +640,12 @@ function StudentApp() {
         const keysRes = await window.storage.list("media:", true);
         if (keysRes && keysRes.keys) {
           const obj = {};
-          for (const k of keysRes.keys) {
+          await runWithConcurrency(keysRes.keys, 40, async (k) => {
             try {
               const r = await window.storage.get(k, true);
               if (r && r.value) obj[k.replace("media:", "")] = JSON.parse(r.value);
             } catch (e) {}
-          }
+          });
           setMedia(obj);
         }
       } catch (e) {}

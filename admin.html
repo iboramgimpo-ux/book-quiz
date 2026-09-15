@@ -491,6 +491,26 @@ function FileSpreadsheet({size=18,color="currentColor"}){return(<svg width={size
 
 const DEFAULT_DURATION = 1.6;
 
+// 여러 개의 비동기 작업(예: Firestore get 800개)을 "동시에 N개씩" 실행합니다.
+// 기존 코드는 for...of + await로 한 번에 하나씩만 순서대로 실행해서,
+// 단어가 800~1200개면 각 요청의 왕복 시간(네트워크 지연)이 전부 더해져
+// 페이지 로딩이 몇 분씩 걸리는 원인이었습니다. N개씩 동시에 보내면
+// 왕복 시간이 겹쳐져서 전체 시간이 크게 줄어듭니다.
+async function runWithConcurrency(items, limit, worker) {
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  async function runner() {
+    while (nextIndex < items.length) {
+      const current = nextIndex++;
+      results[current] = await worker(items[current], current);
+    }
+  }
+  const runners = [];
+  for (let i = 0; i < Math.min(limit, items.length); i++) runners.push(runner());
+  await Promise.all(runners);
+  return results;
+}
+
 function AdminUploadTool() {
   const [deletedWords, setDeletedWords] = useState([]);
   const [addedWords, setAddedWords] = useState([]);
@@ -538,7 +558,7 @@ function AdminUploadTool() {
         if (keysRes && keysRes.keys && keysRes.keys.length) {
           const mediaObj = {};
           const getFailures = [];
-          for (const k of keysRes.keys) {
+          await runWithConcurrency(keysRes.keys, 40, async (k) => {
             try {
               const r = await window.storage.get(k, true);
               if (r && r.value) {
@@ -548,7 +568,7 @@ function AdminUploadTool() {
             } catch (e) {
               getFailures.push(k + ": " + (e && e.message ? e.message : String(e)));
             }
-          }
+          });
           setMedia(mediaObj);
           if (getFailures.length) {
             console.warn("[media load] 일부 단어의 그림/음성을 불러오지 못했습니다:\n" + getFailures.join("\n"));
