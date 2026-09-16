@@ -562,6 +562,27 @@ async function runWithConcurrency(items, limit, worker) {
   return results;
 }
 
+// media 객체 안에 "실제 내용"이 아니라 "존재만 표시하는 자리표시자(true)"가
+// 남아있는지 확인합니다. 초기 로딩 때는 용량이 큰 그림/음성 내용을 통째로
+// 받지 않고 이 자리표시자만 채워두고, 실제로 필요한 순간(사전 화면에 보일 때,
+// 학습 화면에서 그 단어를 열었을 때, 퀴즈에 나올 때)에만 진짜 내용을 불러옵니다.
+// (admin.html과 동일한 방식 - 1200단어 전체를 매번 다 내려받는 게 첫 화면이
+// 뜨기까지 10초 넘게 걸리던 진짜 원인이었습니다.)
+function mediaHasPlaceholder(m) {
+  if (!m) return false;
+  if (m.image === true || m.wordAudio === true || m.definitionAudio === true) return true;
+  if (Array.isArray(m.soundEffects) && m.soundEffects.some((x) => x === true)) return true;
+  return false;
+}
+
+async function fetchFullMediaForWord(word) {
+  try {
+    const r = await window.storage.get("media:" + word, true);
+    if (r && r.value) return JSON.parse(r.value);
+  } catch (e) {}
+  return null;
+}
+
 function StudentApp() {
   const [screen, setScreen] = useState("home"); // home | dictionary | game | settings | study | quiz
   const [dictLetter, setDictLetter] = useState("A");
@@ -633,20 +654,33 @@ function StudentApp() {
     })();
   }, [studentId]);
 
-  // ---------- 미디어 + 설정 + 오늘 진행상황 불러오기 ----------
+  // ---------- 미디어(가벼운 목록만) + 설정 + 오늘 진행상황 불러오기 ----------
   useEffect(() => {
     (async () => {
       try {
         const keysRes = await window.storage.list("media:", true);
-        if (keysRes && keysRes.keys) {
-          const obj = {};
+        if (keysRes && keysRes.keys && keysRes.keys.length) {
+          const mediaObj = {};
+          // ⚠️ 여기서는 그림/음성의 실제 내용(큰 base64)을 통째로 받지 않습니다.
+          // 가벼운 "본문(manifest)" 문서만 읽어서 있다/없다만 파악하고, 실제 내용은
+          // 사전에서 보이는 글자 탭, 지금 학습 중인 단어, 퀴즈에 나온 단어에서만
+          // 그때그때 불러옵니다. (admin.html과 동일한 방식)
           await runWithConcurrency(keysRes.keys, 40, async (k) => {
             try {
-              const r = await window.storage.get(k, true);
-              if (r && r.value) obj[k.replace("media:", "")] = JSON.parse(r.value);
+              const doc = await db.collection("kv").doc(sanitizeKey(k)).get({ source: "server" });
+              if (!doc.exists) return;
+              const data = doc.data();
+              let inline = {};
+              try { inline = JSON.parse(data.value); } catch (e) { inline = {}; }
+              const external = data.external || [];
+              const flagsObj = { ...inline };
+              for (const field of external) {
+                if (!flagsObj[field]) flagsObj[field] = true; // 존재는 하지만 아직 안 불러온 상태
+              }
+              mediaObj[k.replace("media:", "")] = flagsObj;
             } catch (e) {}
           });
-          setMedia(obj);
+          setMedia(mediaObj);
         }
       } catch (e) {}
       // admin.html에서 수정/추가/삭제한 단어 정보를 불러옵니다.
@@ -773,6 +807,70 @@ function StudentApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [studyWord]);
 
+  // ---------- 필요한 순간에만 그림/음성 실제 내용을 불러오기 ----------
+  // 사전 화면: 지금 보고 있는 글자(letter)에 해당하는 단어들의 썸네일만 불러옵니다.
+  useEffect(() => {
+    if (screen !== "dictionary") return;
+    const toFetch = words
+      .filter((w) => w.word[0].toUpperCase() === dictLetter)
+      .map((w) => w.word)
+      .filter((word) => mediaHasPlaceholder(media[word]));
+    if (toFetch.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      await runWithConcurrency(toFetch, 10, async (word) => {
+        const full = await fetchFullMediaForWord(word);
+        if (full && !cancelled) setMedia((prev) => ({ ...prev, [word]: full }));
+      });
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, dictLetter, words]);
+
+  // 학습 화면: 지금 공부 중인 그 단어 하나만 불러옵니다.
+  useEffect(() => {
+    if (screen !== "study" || !studyWord) return;
+    if (!mediaHasPlaceholder(media[studyWord.word])) return;
+    let cancelled = false;
+    (async () => {
+      const full = await fetchFullMediaForWord(studyWord.word);
+      if (full && !cancelled) setMedia((prev) => ({ ...prev, [studyWord.word]: full }));
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, studyWord]);
+
+  const quizWords = useMemo(
+    () => todayWords.map((w) => sortedWords.find((sw) => sw.word === w)).filter(Boolean),
+    [todayWords, sortedWords]
+  );
+
+  // 퀴즈 화면: 오늘 학습한 단어들(퀴즈에 나올 단어들)만 불러옵니다.
+  useEffect(() => {
+    if (screen !== "quiz") return;
+    const toFetch = quizWords.map((w) => w.word).filter((word) => mediaHasPlaceholder(media[word]));
+    if (toFetch.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      await runWithConcurrency(toFetch, 10, async (word) => {
+        const full = await fetchFullMediaForWord(word);
+        if (full && !cancelled) setMedia((prev) => ({ ...prev, [word]: full }));
+      });
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screen, quizWords]);
+
+  // 학습 화면 안에서 "연결된 단어" 팝업을 탭했을 때, 아직 안 불러온 그림이면
+  // 그 자리에서 바로 불러옵니다 (StudyScreen에 내려줘서 사용).
+  const ensureMediaForWord = useCallback(async (word) => {
+    if (!mediaHasPlaceholder(media[word])) return media[word] || null;
+    const full = await fetchFullMediaForWord(word);
+    if (full) setMedia((prev) => ({ ...prev, [word]: full }));
+    return full;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [media]);
+
   if (!baseWords) {
     return (
       <div className="w-full h-screen flex items-center justify-center" style={{ background: "#0F1B2D" }}>
@@ -806,6 +904,7 @@ function StudentApp() {
         <StudyScreen
           word={studyWord}
           media={media}
+          ensureMediaForWord={ensureMediaForWord}
           allWords={sortedWords}
           onHome={goHome}
           onBackToDict={() => window.history.back()}
@@ -819,7 +918,7 @@ function StudentApp() {
       {screen === "game" && <GameMenuScreen onHome={goHome} />}
       {screen === "quiz" && (
         <QuizScreen
-          words={todayWords.map((w) => sortedWords.find((sw) => sw.word === w)).filter(Boolean)}
+          words={quizWords}
           allWords={sortedWords}
           media={media}
           onHome={goHome}
@@ -956,6 +1055,7 @@ function DictionaryScreen({ letter, setLetter, letters, onHome, onOpenWord, medi
         <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
           {wordsForLetter.map((w) => {
             const m = media[w.word] || {};
+            const imageReady = typeof m.image === "string";
             return (
               <button
                 key={w.word}
@@ -964,7 +1064,7 @@ function DictionaryScreen({ letter, setLetter, letters, onHome, onOpenWord, medi
                 style={{ borderColor: "#EAE2CE" }}
               >
                 <div className="w-full aspect-square rounded-lg mb-2 overflow-hidden flex items-center justify-center" style={{ background: "#F3EEE0" }}>
-                  {m.image ? (
+                  {imageReady ? (
                     <div className="w-full h-full" style={{ backgroundImage: "url(" + m.image + ")", backgroundSize: "400% 100%", backgroundPosition: "0% 0" }} />
                   ) : (
                     <BookOpen size={18} style={{ color: "#C9BF9F" }} />
@@ -1125,7 +1225,7 @@ function LinkedSegments({ segments, onWordTap }) {
   );
 }
 
-function StudyScreen({ word, media, allWords, onHome, onBackToDict, onGoDictionary, onWordComplete, onJumpToWord, hasNext, onNext }) {
+function StudyScreen({ word, media, ensureMediaForWord, allWords, onHome, onBackToDict, onGoDictionary, onWordComplete, onJumpToWord, hasNext, onNext }) {
   const [stage, setStage] = useState("word");
   const [animPlaying, setAnimPlaying] = useState(false);
   const [animLoop, setAnimLoop] = useState(0); // 0 또는 1 (2회 반복재생)
@@ -1217,25 +1317,46 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onGoDictiona
 
   const playAudioOrTts = useCallback((src, text, onend) => {
     stopAll();
-    if (src) {
+    // 그림/음성이 아직 자리표시자(true)일 수도 있으니, 실제 내용(문자열)일 때만 재생을 시도합니다.
+    if (typeof src === "string" && src) {
+      // ⚠️ 재생이 실패하면 오디오 요소의 onerror 이벤트와 play()가 반환하는
+      // Promise의 reject가 "둘 다" 발생하는 경우가 있어서, 예전 코드는 TTS
+      // 대체 읽기(speak)가 두 번 호출돼 같은 문장을 두 번 읽는 버그가 있었습니다.
+      // (내가 올린 발음/설명 음성이 재생된 뒤 TTS가 같은 문장을 또 읽던 원인)
+      // 아래처럼 한 번만 실행되도록 막아줍니다.
+      let fallbackDone = false;
+      const fallbackToTts = () => {
+        if (fallbackDone) return;
+        fallbackDone = true;
+        speak(text, onend);
+      };
       const a = new Audio(src);
       audioRef.current = a;
       a.onended = onend;
-      a.onerror = () => speak(text, onend);
-      a.play().catch(() => speak(text, onend));
+      a.onerror = fallbackToTts;
+      a.play().catch(fallbackToTts);
     } else {
       speak(text, onend);
     }
   }, [speak, stopAll]);
 
-  // 정의(definitionAudio)와 예문(exampleAudio)이 각각 별도 음성파일로 있을 수 있으므로
-  // 순서대로 이어서 재생합니다. (음성이 없는 쪽은 TTS로 대체)
-  const playDefAndExample = useCallback((onend) => {
-    playAudioOrTts(m.definitionAudio, word.defn, () => {
-      playAudioOrTts(m.exampleAudio, word.example, onend);
-    });
+  // 정의(definitionAudio) 음원이 올라와 있으면 그 음원만 재생하고, 예문은 TTS로
+  // 따로 읽지 않습니다 (선생님 녹음 안에 예문까지 포함된 경우가 많아 중복 재생을 막기 위함).
+  // 정의 음원이 없는 단어만 뜻풀이+예문을 순서대로 TTS로 읽어줍니다.
+  const playDefAndExample = useCallback(async (onend) => {
+    let defAudio = m.definitionAudio;
+    if (defAudio === true && ensureMediaForWord) {
+      // 아직 자리표시자(true)만 있고 실제 내용을 안 불러온 상태면 지금 불러와서 확인합니다.
+      const full = await ensureMediaForWord(word.word);
+      defAudio = full && typeof full.definitionAudio === "string" ? full.definitionAudio : null;
+    }
+    if (typeof defAudio === "string" && defAudio) {
+      playAudioOrTts(defAudio, word.defn, onend);
+    } else {
+      speak(word.defn, () => speak(word.example, onend));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [playAudioOrTts, m.definitionAudio, m.exampleAudio, word.defn, word.example]);
+  }, [playAudioOrTts, speak, ensureMediaForWord, m.definitionAudio, word.defn, word.example, word.word]);
 
   useEffect(() => {
     stopAll();
@@ -1317,14 +1438,22 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onGoDictiona
     return Math.round(Math.max(120, Math.min(0.7 * eff.h, 0.46 * eff.w)));
   }, [viewport, isPortrait]);
 
-  const handleLinkedWordTap = (matchWord, surfaceText) => {
-    const linkedMedia = media[matchWord.word] || {};
+  const handleLinkedWordTap = async (matchWord, surfaceText) => {
     // 화면에 표기된 형태 그대로 발음 (예: flying)
     try { window.speechSynthesis.cancel(); } catch (err) {}
     const u = new SpeechSynthesisUtterance(surfaceText);
     u.lang = "en-US"; u.rate = 0.75;
     setTimeout(() => window.speechSynthesis.speak(u), 80);
-    setPopup({ word: matchWord, image: linkedMedia.image });
+
+    let linkedMedia = media[matchWord.word] || {};
+    setPopup({ word: matchWord, image: typeof linkedMedia.image === "string" ? linkedMedia.image : null });
+    // 아직 그림 내용을 안 불러온 단어면(자리표시자만 있는 상태) 지금 바로 불러와서 팝업에 채워줍니다.
+    if (ensureMediaForWord && mediaHasPlaceholder(linkedMedia)) {
+      const full = await ensureMediaForWord(matchWord.word);
+      if (full && typeof full.image === "string") {
+        setPopup((prev) => (prev && prev.word.word === matchWord.word ? { ...prev, image: full.image } : prev));
+      }
+    }
   };
 
   return (
@@ -1375,7 +1504,7 @@ function StudyScreen({ word, media, allWords, onHome, onBackToDict, onGoDictiona
         </div>
         <div className="w-1/2 h-full flex items-center justify-center p-8">
           <button onClick={tapImage} className="relative rounded-2xl overflow-hidden shadow-lg" style={{ width: squareSize + "px", height: squareSize + "px", background: "#F3EEE0", border: "1px solid #EAE2CE" }}>
-            {m.image ? (
+            {typeof m.image === "string" ? (
               <div className="w-full h-full" style={{ backgroundImage: "url(" + m.image + ")", backgroundSize: "400% 100%", backgroundPosition: animPlaying ? "100% 0" : "0% 0", transition: animPlaying ? "background-position " + duration + "s steps(3)" : "none" }} />
             ) : (
               <div className="w-full h-full flex items-center justify-center text-sm" style={{ color: "#C9BF9F" }}>이미지 없음</div>
@@ -1517,7 +1646,7 @@ function QuizScreen({ words, allWords, media, onHome, onFinish }) {
 
   const m = media[q.word.word] || {};
   const frame2Style = {
-    backgroundImage: m.image ? "url(" + m.image + ")" : undefined,
+    backgroundImage: typeof m.image === "string" ? "url(" + m.image + ")" : undefined,
     backgroundSize: "400% 100%",
     backgroundPosition: "33.333% 0",
   };

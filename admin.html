@@ -511,6 +511,25 @@ async function runWithConcurrency(items, limit, worker) {
   return results;
 }
 
+// media 객체 안에 "실제 내용"이 아니라 "존재만 표시하는 자리표시자(true)"가
+// 남아있는지 확인합니다. 초기 로딩 때는 용량이 큰 그림/음성 내용을 통째로
+// 받지 않고 이 자리표시자만 채워두고, 실제로 필요한 순간(화면에 보일 때,
+// 단어를 열었을 때, 전체 다운로드할 때)에만 진짜 내용을 불러옵니다.
+function mediaHasPlaceholder(m) {
+  if (!m) return false;
+  if (m.image === true || m.wordAudio === true || m.definitionAudio === true) return true;
+  if (Array.isArray(m.soundEffects) && m.soundEffects.some((x) => x === true)) return true;
+  return false;
+}
+
+async function fetchFullMediaForWord(word) {
+  try {
+    const r = await window.storage.get("media:" + word, true);
+    if (r && r.value) return JSON.parse(r.value);
+  } catch (e) {}
+  return null;
+}
+
 function AdminUploadTool() {
   const [deletedWords, setDeletedWords] = useState([]);
   const [addedWords, setAddedWords] = useState([]);
@@ -558,13 +577,24 @@ function AdminUploadTool() {
         if (keysRes && keysRes.keys && keysRes.keys.length) {
           const mediaObj = {};
           const getFailures = [];
+          // ⚠️ 여기서는 그림/음성의 실제 내용(큰 base64)을 통째로 받지 않습니다.
+          // 가벼운 "본문(manifest)" 문서만 읽어서 있다/없다만 파악하고,
+          // 실제 내용은 화면에 보이는 단어나 열어본 단어에서만 그때그때 불러옵니다.
+          // (1200단어 전체의 그림·음성을 매번 다 내려받는 게 로딩이 느렸던 진짜 원인이었습니다.)
           await runWithConcurrency(keysRes.keys, 40, async (k) => {
             try {
-              const r = await window.storage.get(k, true);
-              if (r && r.value) {
-                const w = k.replace("media:", "");
-                mediaObj[w] = JSON.parse(r.value);
+              const doc = await db.collection("kv").doc(sanitizeKey(k)).get({ source: "server" });
+              if (!doc.exists) return;
+              const data = doc.data();
+              let inline = {};
+              try { inline = JSON.parse(data.value); } catch (e) { inline = {}; }
+              const external = data.external || [];
+              const flagsObj = { ...inline };
+              for (const field of external) {
+                if (!flagsObj[field]) flagsObj[field] = true; // 존재는 하지만 아직 안 불러온 상태
               }
+              const w = k.replace("media:", "");
+              mediaObj[w] = flagsObj;
             } catch (e) {
               getFailures.push(k + ": " + (e && e.message ? e.message : String(e)));
             }
@@ -655,6 +685,27 @@ function AdminUploadTool() {
     }
     return list;
   }, [words, activeLetter, query]);
+
+  // 화면에 실제로 보이는(현재 글자 탭/검색 결과) 단어들만 그림 썸네일 등
+  // 실제 내용을 지금 불러옵니다. 1200개 전체를 한꺼번에 불러오지 않아
+  // 탭을 눌러도 빠르게 유지됩니다.
+  useEffect(() => {
+    const toFetch = filteredWords
+      .map((w) => w.word)
+      .filter((word) => mediaHasPlaceholder(media[word]));
+    if (toFetch.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      await runWithConcurrency(toFetch, 10, async (word) => {
+        const full = await fetchFullMediaForWord(word);
+        if (full && !cancelled) {
+          setMedia((prev) => ({ ...prev, [word]: full }));
+        }
+      });
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filteredWords]);
 
   const stats = useMemo(() => {
     const total = words.length;
@@ -849,14 +900,21 @@ function AdminUploadTool() {
     try {
       const zip = new JSZip();
       let count = 0;
-      for (const w of words) {
-        const m = media[w.word];
-        if (m && m.image) {
-          const ext = dataUrlExt(m.image, "png");
-          zip.file(sanitizeFileName(w.word) + "." + ext, m.image.split(",")[1], { base64: true });
+      // media에는 그림이 있는지 없는지(true 자리표시자 포함)만 들어있을 수 있어서,
+      // 여기서는 단어별로 실제 내용을 필요할 때 받아옵니다.
+      const candidates = words.filter((w) => media[w.word] && media[w.word].image);
+      await runWithConcurrency(candidates, 15, async (w) => {
+        let imageDataUrl = typeof media[w.word].image === "string" ? media[w.word].image : null;
+        if (!imageDataUrl) {
+          const full = await fetchFullMediaForWord(w.word);
+          if (full && typeof full.image === "string") imageDataUrl = full.image;
+        }
+        if (imageDataUrl) {
+          const ext = dataUrlExt(imageDataUrl, "png");
+          zip.file(sanitizeFileName(w.word) + "." + ext, imageDataUrl.split(",")[1], { base64: true });
           count++;
         }
-      }
+      });
       if (count === 0) { flash("업로드된 그림이 없어요", true); setBulkDownloading(""); return; }
       const blob = await zip.generateAsync({ type: "blob" });
       downloadBlob(blob, "word-images.zip");
@@ -874,25 +932,30 @@ function AdminUploadTool() {
     try {
       const zip = new JSZip();
       let count = 0;
-      for (const w of words) {
-        const m = media[w.word];
-        if (!m) continue;
-        if (m.wordAudio) {
+      const candidates = words.filter((w) => media[w.word]);
+      // 효과음 합치기(디코딩+인코딩)는 CPU 부담이 있어서 동시 처리 개수를 낮게 잡습니다.
+      await runWithConcurrency(candidates, 6, async (w) => {
+        let m = media[w.word];
+        if (mediaHasPlaceholder(m)) {
+          const full = await fetchFullMediaForWord(w.word);
+          if (full) m = full;
+        }
+        if (typeof m.wordAudio === "string") {
           zip.file(sanitizeFileName(w.word) + "_word." + dataUrlExt(m.wordAudio, "mp3"), m.wordAudio.split(",")[1], { base64: true });
           count++;
         }
-        if (m.definitionAudio) {
+        if (typeof m.definitionAudio === "string") {
           zip.file(sanitizeFileName(w.word) + "_definition." + dataUrlExt(m.definitionAudio, "mp3"), m.definitionAudio.split(",")[1], { base64: true });
           count++;
         }
-        const effects = (m.soundEffects || []).filter(Boolean);
+        const effects = (m.soundEffects || []).filter((x) => typeof x === "string");
         if (effects.length > 0) {
           // 애니메이션 재생 시 순서대로 이어지는 효과음이므로, 하나의 mp3로 합쳐서 담아요.
           const mp3Blob = await combineEffectsToMp3(effects);
           zip.file(sanitizeFileName(w.word) + "_effects.mp3", mp3Blob);
           count++;
         }
-      }
+      });
       if (count === 0) { flash("업로드된 효과음/오디오가 없어요", true); setBulkDownloading(""); return; }
       const blob = await zip.generateAsync({ type: "blob" });
       downloadBlob(blob, "word-sounds.zip");
@@ -933,10 +996,11 @@ function AdminUploadTool() {
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState(null); // null | "success" | "error"
   const [saveErrorMsg, setSaveErrorMsg] = useState("");
+  const [mediaFetching, setMediaFetching] = useState(false); // 선택한 단어의 실제 그림/음성을 불러오는 중
 
   useEffect(() => {
     if (selectedWord) {
-      setPendingMedia(media[selectedWord.word] || { duration: DEFAULT_DURATION });
+      const cached = media[selectedWord.word];
       setPendingFields({
         gloss: selectedWord.gloss || "",
         defn: selectedWord.defn || "",
@@ -944,6 +1008,23 @@ function AdminUploadTool() {
       });
       setSaveResult(null);
       setSaveErrorMsg("");
+      if (mediaHasPlaceholder(cached)) {
+        setPendingMedia(cached); // 아직 못 불러온 부분은 잠깐 true로 보일 수 있어요
+        setMediaFetching(true);
+        let cancelled = false;
+        fetchFullMediaForWord(selectedWord.word).then((full) => {
+          if (cancelled) return;
+          if (full) {
+            setMedia((prev) => ({ ...prev, [selectedWord.word]: full }));
+            setPendingMedia(full);
+          }
+          setMediaFetching(false);
+        });
+        return () => { cancelled = true; };
+      } else {
+        setPendingMedia(cached || { duration: DEFAULT_DURATION });
+        setMediaFetching(false);
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedWord]);
@@ -1249,6 +1330,7 @@ function AdminUploadTool() {
               const m = media[w.word] || {};
               const hasImg = !!m.image;
               const hasAud = !!m.definitionAudio;
+              const imageReady = typeof m.image === "string";
               const isArmed = confirmDelete === w.word;
               return (
                 <div key={w.word} className="relative">
@@ -1258,10 +1340,10 @@ function AdminUploadTool() {
                     style={{ borderColor: "#EAE2CE" }}
                   >
                     <div className="w-full aspect-square rounded-lg mb-2 flex items-center justify-center overflow-hidden" style={{ background: "#F3EEE0" }}>
-                      {hasImg ? (
+                      {imageReady ? (
                         <img src={m.image} alt={w.word} className="w-full h-full object-cover" style={{ objectPosition: "0% 50%", width: "400%" }} />
                       ) : (
-                        <ImageIcon size={22} style={{ color: "#C9BF9F" }} />
+                        <ImageIcon size={22} style={{ color: hasImg ? "#8FA6C2" : "#C9BF9F" }} />
                       )}
                     </div>
                     <div className="font-serif text-sm font-semibold truncate" style={{ color: "#1E3A5F" }}>{w.word}</div>
@@ -1329,6 +1411,11 @@ function AdminUploadTool() {
             </div>
 
             <div className="p-5 space-y-6 pb-28">
+              {mediaFetching && (
+                <div className="text-xs px-3 py-2 rounded-lg" style={{ background: "#EFF6FF", color: "#1E40AF" }}>
+                  이 단어의 그림/음성을 불러오는 중...
+                </div>
+              )}
               <section>
                 <SectionLabel text="한글 뜻 / 사전적 정의 / 예문 (수정 가능)" />
                 <div className="space-y-2">
@@ -1341,7 +1428,7 @@ function AdminUploadTool() {
               <section>
                 <SectionLabel icon={<ImageIcon size={15} />} text="그림 스프라이트 (4프레임, 정사각형)" />
                 <UploadBox accept="image/*" onFile={handleImageUpload} hasFile={!!selectedMedia.image} />
-                {selectedMedia.image && (
+                {typeof selectedMedia.image === "string" && (
                   <div className="mt-3">
                     <div
                       className="mx-auto rounded-xl overflow-hidden border"
@@ -1387,19 +1474,19 @@ function AdminUploadTool() {
               <section>
                 <SectionLabel icon={<Music size={15} />} text="단어 발음 오디오" />
                 <UploadBox accept="audio/*" onFile={handleWordAudioUpload} hasFile={!!selectedMedia.wordAudio} />
-                {selectedMedia.wordAudio && <audio controls src={selectedMedia.wordAudio} className="w-full mt-2" style={{ height: 36 }} />}
+                {typeof selectedMedia.wordAudio === "string" && <audio controls src={selectedMedia.wordAudio} className="w-full mt-2" style={{ height: 36 }} />}
               </section>
 
               <section>
                 <SectionLabel icon={<Music size={15} />} text="영영풀이 오디오 (정의+예문)" />
                 <UploadBox accept="audio/*" onFile={handleDefinitionAudioUpload} hasFile={!!selectedMedia.definitionAudio} />
-                {selectedMedia.definitionAudio && <audio controls src={selectedMedia.definitionAudio} className="w-full mt-2" style={{ height: 36 }} />}
+                {typeof selectedMedia.definitionAudio === "string" && <audio controls src={selectedMedia.definitionAudio} className="w-full mt-2" style={{ height: 36 }} />}
               </section>
 
               <section>
                 <SectionLabel icon={<Music size={15} />} text={"효과음 (최대 " + MAX_EFFECTS + "개, 순서대로 이어서 재생 · 그림 애니메이션 시간에 맞춰 자동으로 멈춰요)"} />
                 <div className="space-y-2">
-                  {(selectedMedia.soundEffects || []).map((src, idx) => (
+                  {(selectedMedia.soundEffects || []).filter((src) => typeof src === "string").map((src, idx) => (
                     <div key={idx} className="flex items-center gap-2">
                       <span className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold" style={{ background: "#F0EADA", color: "#8A7F68" }}>
                         {idx + 1}
