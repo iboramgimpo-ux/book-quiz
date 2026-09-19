@@ -562,25 +562,60 @@ async function runWithConcurrency(items, limit, worker) {
   return results;
 }
 
-// media 객체 안에 "실제 내용"이 아니라 "존재만 표시하는 자리표시자(true)"가
-// 남아있는지 확인합니다. 초기 로딩 때는 용량이 큰 그림/음성 내용을 통째로
-// 받지 않고 이 자리표시자만 채워두고, 실제로 필요한 순간(사전 화면에 보일 때,
-// 학습 화면에서 그 단어를 열었을 때, 퀴즈에 나올 때)에만 진짜 내용을 불러옵니다.
-// (admin.html과 동일한 방식 - 1200단어 전체를 매번 다 내려받는 게 첫 화면이
-// 뜨기까지 10초 넘게 걸리던 진짜 원인이었습니다.)
-function mediaHasPlaceholder(m) {
-  if (!m) return false;
-  if (m.image === true || m.wordAudio === true || m.definitionAudio === true) return true;
-  if (Array.isArray(m.soundEffects) && m.soundEffects.some((x) => x === true)) return true;
-  return false;
+// ============================================================
+// 폴더 기반 미디어 (GitHub Pages 정적 파일)
+//  - 음성   : word-app/assets/audio/CODE_w.mp3 (단어), CODE_d.mp3 (영영풀이)  ← word-app과 공유
+//  - 그림   : assets/anim/CODE.webp (없으면 .png, .jpg)  4프레임 스프라이트
+//  - 효과음 : assets/sfx/CODE.mp3  (여러 개면 하나로 합쳐서)
+//  CODE는 word-map.json(단어 -> 코드)에서 찾고, 목록에 없는 단어는 소문자 단어 이름(my_word)을 씁니다.
+//  파일이 없으면 음성은 TTS로 읽고, 그림/효과음은 그냥 생략합니다.
+//  Firestore는 이제 미디어를 저장하지 않습니다 (word-edits, 진도 등 작은 데이터 + anim-durations만).
+// ============================================================
+const MEDIA_CFG = { audioDir: "word-app/assets/audio/", animDir: "assets/anim/", sfxDir: "assets/sfx/" };
+let WORD_MAP = {};
+let DURATIONS = {};
+let _mediaCfgPromise = null;
+function loadMediaConfig() {
+  if (!_mediaCfgPromise) {
+    _mediaCfgPromise = (async () => {
+      try { const r = await fetch("word-map.json"); WORD_MAP = await r.json(); } catch (e) { WORD_MAP = {}; }
+      try { const r = await window.storage.get("anim-durations", true); DURATIONS = JSON.parse(r.value) || {}; } catch (e) { DURATIONS = {}; }
+    })();
+  }
+  return _mediaCfgPromise;
 }
-
+function mediaKey(word) {
+  return WORD_MAP[word] || String(word).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+}
+function baseMedia(word) {
+  const m = { duration: DURATIONS[word] || DEFAULT_DURATION };
+  const c = WORD_MAP[word];
+  if (c) { m.wordAudio = MEDIA_CFG.audioDir + c + "_w.mp3"; m.definitionAudio = MEDIA_CFG.audioDir + c + "_d.mp3"; }
+  return m;
+}
+const _probeCache = {};
+function probeImage(url) {
+  if (!_probeCache[url]) _probeCache[url] = new Promise((res) => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = url; });
+  return _probeCache[url];
+}
+function probeFile(url) {
+  if (!_probeCache[url]) _probeCache[url] = fetch(url, { method: "HEAD" }).then((r) => r.ok).catch(() => false);
+  return _probeCache[url];
+}
+// 예전 이름 그대로 유지: 화면에 필요한 단어만 그림/효과음이 있는지 확인해서 채워 넣습니다.
+function mediaHasPlaceholder(m) { return !m || !m.__resolved; }
 async function fetchFullMediaForWord(word) {
-  try {
-    const r = await window.storage.get("media:" + word, true);
-    if (r && r.value) return JSON.parse(r.value);
-  } catch (e) {}
-  return null;
+  await loadMediaConfig();
+  const m = baseMedia(word);
+  const k = mediaKey(word);
+  for (const ext of ["webp", "png", "jpg"]) {
+    const u = MEDIA_CFG.animDir + k + "." + ext;
+    if (await probeImage(u)) { m.image = u; break; }
+  }
+  const s = MEDIA_CFG.sfxDir + k + ".mp3";
+  if (await probeFile(s)) m.soundEffects = [s];
+  m.__resolved = true;
+  return m;
 }
 
 function StudentApp() {
@@ -658,30 +693,10 @@ function StudentApp() {
   useEffect(() => {
     (async () => {
       try {
-        const keysRes = await window.storage.list("media:", true);
-        if (keysRes && keysRes.keys && keysRes.keys.length) {
-          const mediaObj = {};
-          // ⚠️ 여기서는 그림/음성의 실제 내용(큰 base64)을 통째로 받지 않습니다.
-          // 가벼운 "본문(manifest)" 문서만 읽어서 있다/없다만 파악하고, 실제 내용은
-          // 사전에서 보이는 글자 탭, 지금 학습 중인 단어, 퀴즈에 나온 단어에서만
-          // 그때그때 불러옵니다. (admin.html과 동일한 방식)
-          await runWithConcurrency(keysRes.keys, 40, async (k) => {
-            try {
-              const doc = await db.collection("kv").doc(sanitizeKey(k)).get({ source: "server" });
-              if (!doc.exists) return;
-              const data = doc.data();
-              let inline = {};
-              try { inline = JSON.parse(data.value); } catch (e) { inline = {}; }
-              const external = data.external || [];
-              const flagsObj = { ...inline };
-              for (const field of external) {
-                if (!flagsObj[field]) flagsObj[field] = true; // 존재는 하지만 아직 안 불러온 상태
-              }
-              mediaObj[k.replace("media:", "")] = flagsObj;
-            } catch (e) {}
-          });
-          setMedia(mediaObj);
-        }
+        await loadMediaConfig();
+        const mediaObj = {};
+        Object.keys(WORD_MAP).forEach((w) => { mediaObj[w] = baseMedia(w); });
+        setMedia(mediaObj);
       } catch (e) {}
       // admin.html에서 수정/추가/삭제한 단어 정보를 불러옵니다.
       // (이 부분이 빠져 있어서 admin에서 영영풀이를 고쳐도 학생 화면에 반영되지 않았습니다)

@@ -511,23 +511,69 @@ async function runWithConcurrency(items, limit, worker) {
   return results;
 }
 
-// media 객체 안에 "실제 내용"이 아니라 "존재만 표시하는 자리표시자(true)"가
-// 남아있는지 확인합니다. 초기 로딩 때는 용량이 큰 그림/음성 내용을 통째로
-// 받지 않고 이 자리표시자만 채워두고, 실제로 필요한 순간(화면에 보일 때,
-// 단어를 열었을 때, 전체 다운로드할 때)에만 진짜 내용을 불러옵니다.
-function mediaHasPlaceholder(m) {
-  if (!m) return false;
-  if (m.image === true || m.wordAudio === true || m.definitionAudio === true) return true;
-  if (Array.isArray(m.soundEffects) && m.soundEffects.some((x) => x === true)) return true;
-  return false;
+// ============================================================
+// 폴더 기반 미디어 (GitHub Pages 정적 파일)
+//  - 음성   : word-app/assets/audio/CODE_w.mp3 (단어), CODE_d.mp3 (영영풀이)  ← word-app과 공유
+//  - 그림   : assets/anim/CODE.webp (없으면 .png, .jpg)  4프레임 스프라이트
+//  - 효과음 : assets/sfx/CODE.mp3  (여러 개면 하나로 합쳐서)
+//  CODE는 word-map.json(단어 -> 코드)에서 찾고, 목록에 없는 단어는 소문자 단어 이름(my_word)을 씁니다.
+//  파일이 없으면 음성은 TTS로 읽고, 그림/효과음은 그냥 생략합니다.
+//  Firestore는 이제 미디어를 저장하지 않습니다 (word-edits, 진도 등 작은 데이터 + anim-durations만).
+// ============================================================
+const MEDIA_CFG = { audioDir: "word-app/assets/audio/", animDir: "assets/anim/", sfxDir: "assets/sfx/" };
+let WORD_MAP = {};
+let DURATIONS = {};
+let _mediaCfgPromise = null;
+function loadMediaConfig() {
+  if (!_mediaCfgPromise) {
+    _mediaCfgPromise = (async () => {
+      try { const r = await fetch("word-map.json"); WORD_MAP = await r.json(); } catch (e) { WORD_MAP = {}; }
+      try { const r = await window.storage.get("anim-durations", true); DURATIONS = JSON.parse(r.value) || {}; } catch (e) { DURATIONS = {}; }
+    })();
+  }
+  return _mediaCfgPromise;
+}
+function mediaKey(word) {
+  return WORD_MAP[word] || String(word).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+}
+function baseMedia(word) {
+  const m = { duration: DURATIONS[word] || DEFAULT_DURATION };
+  const c = WORD_MAP[word];
+  if (c) { m.wordAudio = MEDIA_CFG.audioDir + c + "_w.mp3"; m.definitionAudio = MEDIA_CFG.audioDir + c + "_d.mp3"; }
+  return m;
+}
+const _probeCache = {};
+function probeImage(url) {
+  if (!_probeCache[url]) _probeCache[url] = new Promise((res) => { const i = new Image(); i.onload = () => res(true); i.onerror = () => res(false); i.src = url; });
+  return _probeCache[url];
+}
+function probeFile(url) {
+  if (!_probeCache[url]) _probeCache[url] = fetch(url, { method: "HEAD" }).then((r) => r.ok).catch(() => false);
+  return _probeCache[url];
+}
+// 예전 이름 그대로 유지: 화면에 필요한 단어만 그림/효과음이 있는지 확인해서 채워 넣습니다.
+function mediaHasPlaceholder(m) { return !m || !m.__resolved; }
+async function fetchFullMediaForWord(word) {
+  await loadMediaConfig();
+  const m = baseMedia(word);
+  const k = mediaKey(word);
+  for (const ext of ["webp", "png", "jpg"]) {
+    const u = MEDIA_CFG.animDir + k + "." + ext;
+    if (await probeImage(u)) { m.image = u; break; }
+  }
+  const s = MEDIA_CFG.sfxDir + k + ".mp3";
+  if (await probeFile(s)) m.soundEffects = [s];
+  m.__resolved = true;
+  return m;
 }
 
-async function fetchFullMediaForWord(word) {
-  try {
-    const r = await window.storage.get("media:" + word, true);
-    if (r && r.value) return JSON.parse(r.value);
-  } catch (e) {}
-  return null;
+function FolderHint({ ok, path, fallback }) {
+  return (
+    <div className="text-xs px-3 py-2.5 rounded-lg" style={{ background: ok ? "#EFF6EE" : "#F6F1E4", color: ok ? "#4C7A5B" : "#8A7F68" }}>
+      {ok ? "✓ 폴더에 파일이 있어요" : "✗ 폴더에 파일이 없어요" + (fallback ? " (" + fallback + ")" : "")}
+      <div className="font-mono mt-1" style={{ wordBreak: "break-all" }}>{path}</div>
+    </div>
+  );
 }
 
 function AdminUploadTool() {
@@ -573,51 +619,13 @@ function AdminUploadTool() {
   useEffect(() => {
     (async () => {
       try {
-        const keysRes = await window.storage.list("media:", true);
-        if (keysRes && keysRes.keys && keysRes.keys.length) {
-          const mediaObj = {};
-          const getFailures = [];
-          // ⚠️ 여기서는 그림/음성의 실제 내용(큰 base64)을 통째로 받지 않습니다.
-          // 가벼운 "본문(manifest)" 문서만 읽어서 있다/없다만 파악하고,
-          // 실제 내용은 화면에 보이는 단어나 열어본 단어에서만 그때그때 불러옵니다.
-          // (1200단어 전체의 그림·음성을 매번 다 내려받는 게 로딩이 느렸던 진짜 원인이었습니다.)
-          await runWithConcurrency(keysRes.keys, 40, async (k) => {
-            try {
-              const doc = await db.collection("kv").doc(sanitizeKey(k)).get({ source: "server" });
-              if (!doc.exists) return;
-              const data = doc.data();
-              let inline = {};
-              try { inline = JSON.parse(data.value); } catch (e) { inline = {}; }
-              const external = data.external || [];
-              const flagsObj = { ...inline };
-              for (const field of external) {
-                if (!flagsObj[field]) flagsObj[field] = true; // 존재는 하지만 아직 안 불러온 상태
-              }
-              const w = k.replace("media:", "");
-              mediaObj[w] = flagsObj;
-            } catch (e) {
-              getFailures.push(k + ": " + (e && e.message ? e.message : String(e)));
-            }
-          });
-          setMedia(mediaObj);
-          if (getFailures.length) {
-            console.warn("[media load] 일부 단어의 그림/음성을 불러오지 못했습니다:\n" + getFailures.join("\n"));
-            setLoadError(
-              "일부 단어(" + getFailures.length + "개)의 그림/음성을 서버에서 불러오지 못했어요. " +
-              "개발자 도구(콘솔)에서 자세한 오류를 확인해주세요."
-            );
-          }
-        } else {
-          // 키 목록 자체가 비어있음: 실제로 저장된 게 없는 것인지,
-          // list() 쿼리 자체가 (권한 등의 이유로) 조용히 빈 배열을 돌려준 것인지 구분이 안 되므로 표시는 하지 않습니다.
-        }
+        await loadMediaConfig();
+        const mediaObj = {};
+        Object.keys(WORD_MAP).forEach((w) => { mediaObj[w] = baseMedia(w); });
+        setMedia(mediaObj);
       } catch (e) {
-        console.error("[media load] media: 목록을 불러오지 못했습니다.", e);
-        setLoadError(
-          "그림/음성 목록을 서버에서 불러오지 못했어요 (" + (e && e.message ? e.message : String(e)) + "). " +
-          "Firestore 보안 규칙(rules)에서 'kv' 컬렉션의 목록 조회(list/query)가 막혀 있을 수 있어요. " +
-          "개별 저장은 성공했다고 나와도, 이 화면에 그림/음성이 0개로 보이는 가장 흔한 원인입니다."
-        );
+        console.error("[media load]", e);
+        setLoadError("word-map.json을 불러오지 못했어요. 파일 위치를 확인해주세요.");
       }
       try {
         const del = await window.storage.get("deleted-words", true);
@@ -1121,17 +1129,12 @@ function AdminUploadTool() {
     setSaving(true);
     setSaveResult(null);
     try {
-      const res = await window.storage.set("media:" + selectedWord.word, JSON.stringify(pendingMedia), true);
-      if (res && res.value) {
-        const savedValue = JSON.parse(res.value); // Storage 업로드 후 실제 URL로 치환된 값
-        setMedia((prev) => ({ ...prev, [selectedWord.word]: savedValue }));
-        setPendingMedia(savedValue);
-      } else {
-        setSaveResult("error");
-        setSaveErrorMsg("저장에 실패했어요. Firebase Storage 규칙(rules)이 쓰기를 막고 있을 수 있어요.");
-        setSaving(false);
-        return;
+      // 그림/음성은 폴더 파일이라 여기서 저장하지 않고, 재생 시간(duration)만 작은 문서 하나에 저장합니다.
+      if ((pendingMedia.duration || DEFAULT_DURATION) !== (DURATIONS[selectedWord.word] || DEFAULT_DURATION)) {
+        DURATIONS[selectedWord.word] = pendingMedia.duration;
+        await window.storage.set("anim-durations", JSON.stringify(DURATIONS), true);
       }
+      setMedia((prev) => ({ ...prev, [selectedWord.word]: pendingMedia }));
 
       // 뜻/정의/예문이 바뀌었다면 word-edits에 함께 저장
       const fieldsChanged =
@@ -1186,7 +1189,7 @@ function AdminUploadTool() {
           </div>
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex items-center gap-4 text-sm">
-              <span style={{ color: "#B7C6DA" }}>그림 <b className="text-white">{stats.img}</b>/{stats.total}</span>
+              <span style={{ color: "#B7C6DA" }}>확인된 그림 <b className="text-white">{stats.img}</b></span>
               <span style={{ color: "#B7C6DA" }}>풀이음성 <b className="text-white">{stats.aud}</b>/{stats.total}</span>
             </div>
             <button
@@ -1215,18 +1218,9 @@ function AdminUploadTool() {
         >
           학생 링크
         </button>
-        <button
-          onClick={() => setMainTab("bulk")}
-          className="px-4 py-2 rounded-t-lg text-sm font-semibold border-b-2 transition"
-          style={{ color: mainTab === "bulk" ? "#1E3A5F" : "#8A7F68", borderColor: mainTab === "bulk" ? "#D9A441" : "transparent", background: mainTab === "bulk" ? "white" : "transparent" }}
-        >
-          단어소리/영영풀이 일괄 업로드
-        </button>
       </div>
 
       {mainTab === "students" && <StudentLinksPanel />}
-      {mainTab === "bulk" && <BulkZipUploadPanel allWords={words} />}
-      {mainTab === "bulk" && <BulkDeleteImagesPanel media={media} setMedia={setMedia} totalWords={words.length} />}
 
       {mainTab === "words" && (
       <>
@@ -1244,27 +1238,11 @@ function AdminUploadTool() {
         </div>
       )}
       <div className="sm:hidden px-5 py-2 text-xs flex gap-4" style={{ color: "#5B6B7F" }}>
-        <span>그림 {stats.img}/{stats.total}</span>
+        <span>확인된 그림 {stats.img}</span>
         <span>풀이음성 {stats.aud}/{stats.total}</span>
       </div>
 
       <div className="max-w-6xl mx-auto px-5 pt-4 flex flex-wrap gap-2">
-        <button
-          onClick={handleDownloadAllImages}
-          disabled={!!bulkDownloading}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition disabled:opacity-50"
-          style={{ background: "white", color: "#1E3A5F", border: "1px solid #E4DCC9" }}
-        >
-          <Download size={14} /> {bulkDownloading === "images" ? "그림 압축 중..." : "그림 전체 다운로드"}
-        </button>
-        <button
-          onClick={handleDownloadAllSounds}
-          disabled={!!bulkDownloading}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition disabled:opacity-50"
-          style={{ background: "white", color: "#1E3A5F", border: "1px solid #E4DCC9" }}
-        >
-          <Download size={14} /> {bulkDownloading === "sounds" ? "효과음 압축 중..." : "효과음 전체 다운로드"}
-        </button>
         <button
           onClick={handleDownloadExcel}
           disabled={!!bulkDownloading}
@@ -1427,7 +1405,7 @@ function AdminUploadTool() {
 
               <section>
                 <SectionLabel icon={<ImageIcon size={15} />} text="그림 스프라이트 (4프레임, 정사각형)" />
-                <UploadBox accept="image/*" onFile={handleImageUpload} hasFile={!!selectedMedia.image} />
+                <FolderHint ok={typeof selectedMedia.image === "string"} path={MEDIA_CFG.animDir + mediaKey(selectedWord.word) + ".webp  (또는 .png / .jpg)"} />
                 {typeof selectedMedia.image === "string" && (
                   <div className="mt-3">
                     <div
@@ -1473,40 +1451,20 @@ function AdminUploadTool() {
 
               <section>
                 <SectionLabel icon={<Music size={15} />} text="단어 발음 오디오" />
-                <UploadBox accept="audio/*" onFile={handleWordAudioUpload} hasFile={!!selectedMedia.wordAudio} />
+                <FolderHint ok={typeof selectedMedia.wordAudio === "string"} path={MEDIA_CFG.audioDir + mediaKey(selectedWord.word) + "_w.mp3"} fallback="TTS로 읽어요" />
                 {typeof selectedMedia.wordAudio === "string" && <audio controls src={selectedMedia.wordAudio} className="w-full mt-2" style={{ height: 36 }} />}
               </section>
 
               <section>
                 <SectionLabel icon={<Music size={15} />} text="영영풀이 오디오 (정의+예문)" />
-                <UploadBox accept="audio/*" onFile={handleDefinitionAudioUpload} hasFile={!!selectedMedia.definitionAudio} />
+                <FolderHint ok={typeof selectedMedia.definitionAudio === "string"} path={MEDIA_CFG.audioDir + mediaKey(selectedWord.word) + "_d.mp3"} fallback="TTS로 읽어요" />
                 {typeof selectedMedia.definitionAudio === "string" && <audio controls src={selectedMedia.definitionAudio} className="w-full mt-2" style={{ height: 36 }} />}
               </section>
 
               <section>
-                <SectionLabel icon={<Music size={15} />} text={"효과음 (최대 " + MAX_EFFECTS + "개, 순서대로 이어서 재생 · 그림 애니메이션 시간에 맞춰 자동으로 멈춰요)"} />
-                <div className="space-y-2">
-                  {(selectedMedia.soundEffects || []).filter((src) => typeof src === "string").map((src, idx) => (
-                    <div key={idx} className="flex items-center gap-2">
-                      <span className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-semibold" style={{ background: "#F0EADA", color: "#8A7F68" }}>
-                        {idx + 1}
-                      </span>
-                      <audio controls src={src} className="flex-1" style={{ height: 36 }} />
-                      <button
-                        onClick={() => handleRemoveSoundEffect(idx)}
-                        className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center"
-                        style={{ background: "#FBEAE6" }}
-                      >
-                        <Trash2 size={12} style={{ color: "#C4593F" }} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                {(selectedMedia.soundEffects || []).length < MAX_EFFECTS && (
-                  <div className="mt-2">
-                    <UploadBox accept="audio/*" onFile={handleAddSoundEffect} hasFile={false} />
-                  </div>
-                )}
+                <SectionLabel icon={<Music size={15} />} text="효과음 (여러 개면 하나의 mp3로 합쳐서 올려주세요 · 그림 애니메이션 시간에 맞춰 자동으로 멈춰요)" />
+                <FolderHint ok={(selectedMedia.soundEffects || []).length > 0} path={MEDIA_CFG.sfxDir + mediaKey(selectedWord.word) + ".mp3"} />
+                {(selectedMedia.soundEffects || []).map((src, idx) => <audio key={idx} controls src={src} className="w-full mt-2" style={{ height: 36 }} />)}
               </section>
 
               {saveResult === "error" && (
