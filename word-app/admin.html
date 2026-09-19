@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>그림 단어장 - 학생 링크 관리</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="firebase-shared.js"></script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@400;700&display=swap">
+<style>
+  :root {
+    --ink: #241f5e;
+    --ink-soft: #4a4494;
+    --coral: #e0483e;
+    --sky: #eaf6ff;
+    --sky-deep: #cdeaff;
+    --paper: #fffdf8;
+    --line: #d9e8f5;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin:0; padding:0; min-height:100%; background: var(--sky); font-family:'Gaegu', sans-serif; color: var(--ink); }
+  #root { min-height: 100vh; }
+  button { font: inherit; cursor: pointer; }
+  input { font: inherit; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo } = React;
+
+function IconPlus({ size=13, color="currentColor" }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+}
+function IconChevronDown({ size=13, color="currentColor" }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>;
+}
+function IconCheck({ size=13, color="currentColor" }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
+}
+function IconSearch({ size=16, color="currentColor" }) {
+  return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
+}
+
+function PasswordGate({ children }) {
+  // 관리자 비밀번호 (기존 학생관리 사이트와 동일)
+  const ADMIN_PASSWORD = "bookquiz2024";
+  const [unlocked, setUnlocked] = useState(false);
+  const [input, setInput] = useState("");
+  const [error, setError] = useState(false);
+  const [checked, setChecked] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem("wordapp-admin-unlocked") === "1") setUnlocked(true);
+    } catch (e) {}
+    setChecked(true);
+  }, []);
+
+  const submit = (e) => {
+    e.preventDefault();
+    if (input === ADMIN_PASSWORD) {
+      setUnlocked(true);
+      setError(false);
+      try { sessionStorage.setItem("wordapp-admin-unlocked", "1"); } catch (e) {}
+    } else {
+      setError(true);
+    }
+  };
+
+  if (!checked) return null;
+  if (unlocked) return children;
+
+  return (
+    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background: "#241f5e" }}>
+      <form onSubmit={submit} style={{ width:"100%", maxWidth:320, padding:"32px 28px", borderRadius:20, background:"#fffdf8" }}>
+        <div style={{ textAlign:"center", marginBottom:18 }}>
+          <div style={{ width:48, height:48, margin:"0 auto 10px", borderRadius:14, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, background:"#eaf6ff" }}>🔑</div>
+          <h1 style={{ fontFamily:"'Jua',sans-serif", fontSize:19, margin:0, color:"#241f5e" }}>학생 링크 관리자</h1>
+          <p style={{ fontSize:13, margin:"4px 0 0", color:"#4a4494" }}>비밀번호를 입력해주세요</p>
+        </div>
+        <input
+          type="password"
+          value={input}
+          onChange={(e) => { setInput(e.target.value); setError(false); }}
+          autoFocus
+          placeholder="비밀번호"
+          style={{ width:"100%", padding:"11px 13px", borderRadius:12, border: error ? "2px solid #e0483e" : "2px solid #cdeaff", outline:"none", marginBottom:8 }}
+        />
+        {error && <p style={{ fontSize:12, color:"#e0483e", margin:"0 0 8px" }}>비밀번호가 틀렸어요</p>}
+        <button type="submit" style={{ width:"100%", padding:"11px", borderRadius:12, border:"none", background:"#241f5e", color:"#fff", fontFamily:"'Jua',sans-serif", fontSize:15, marginTop:4 }}>
+          입장하기
+        </button>
+      </form>
+    </div>
+  );
+}
+
+function StudentLinksPanel() {
+  const [allStudents, setAllStudents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
+  const [copiedId, setCopiedId] = useState(null);
+  const [search, setSearch] = useState("");
+  const [expanded, setExpanded] = useState({});
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const snap = await db.collection("students").get();
+        const list = [];
+        snap.forEach((doc) => list.push({ id: doc.id, ...doc.data() }));
+        setAllStudents(list.filter((s) => !s.withdrawn));
+      } catch (e) {
+        console.error("학생 목록 불러오기 실패:", e);
+        setLoadError("학생 목록을 불러오지 못했어요. Firestore 보안규칙에서 이 사이트의 읽기 권한을 허용했는지 확인해주세요.");
+      }
+      setLoading(false);
+    })();
+  }, []);
+
+  // 대표자녀(main 또는 studentType 미설정) + 형제자매 그룹핑 (기존 학생관리 사이트와 동일 로직)
+  const mainStudents = useMemo(() => {
+    return allStudents
+      .filter((s) => s.studentType === "main" || !s.studentType)
+      .sort((a, b) => (a.name || "").localeCompare(b.name || "", "ko"));
+  }, [allStudents]);
+
+  const siblingMap = useMemo(() => {
+    const map = {};
+    allStudents
+      .filter((s) => s.studentType === "sibling")
+      .forEach((s) => {
+        if (!map[s.mainStudentId]) map[s.mainStudentId] = [];
+        map[s.mainStudentId].push(s);
+      });
+    return map;
+  }, [allStudents]);
+
+  // 이 admin.html이 있는 위치를 기준으로 word-app.html의 경로를 만듭니다.
+  const wordAppUrl = (id) => {
+    const base = location.origin + location.pathname.replace(/admin\.html$/, "");
+    return base + "word-app.html?student=" + id;
+  };
+
+  const copyLink = (id) => {
+    const url = wordAppUrl(id);
+    navigator.clipboard?.writeText(url).then(
+      () => { setCopiedId(id); setTimeout(() => setCopiedId(null), 1500); },
+      () => { prompt("아래 링크를 복사하세요:", url); }
+    );
+  };
+
+  const toggleExpand = (id) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  const q = search.trim().toLowerCase();
+  const visibleMains = q ? mainStudents.filter((s) => (s.name || "").toLowerCase().includes(q)) : mainStudents;
+
+  const card = { background:"#fffdf8", border:"2px solid #cdeaff", borderRadius:14, overflow:"hidden" };
+  const rowBtn = (active) => ({
+    flexShrink:0, display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10,
+    fontSize:13, fontFamily:"'Jua',sans-serif", border:"none",
+    background: active ? "#e7f3e9" : "#241f5e", color: active ? "#2e6b3e" : "#fff",
+  });
+
+  return (
+    <div style={{ maxWidth:640, margin:"0 auto", padding:"20px 16px 60px" }}>
+      <h1 style={{ fontFamily:"'Jua',sans-serif", fontSize:22, margin:"4px 0 2px" }}>학생 링크 관리</h1>
+      <p style={{ fontSize:14, color:"#4a4494", margin:"0 0 16px" }}>
+        학생을 터치할 필요 없이, 각 학생 옆 "링크 복사"만 누르면 그 학생 전용 그림 단어장 주소가 복사돼요.
+      </p>
+
+      <div style={{ position:"relative", marginBottom:14 }}>
+        <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"#9CA8B8" }}><IconSearch/></span>
+        <input
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="학생 이름 검색..."
+          style={{ width:"100%", padding:"11px 14px 11px 38px", borderRadius:12, border:"2px solid #cdeaff", outline:"none", background:"#fff" }}
+        />
+      </div>
+
+      {loading ? (
+        <p style={{ textAlign:"center", padding:"40px 0", color:"#9CA8B8" }}>불러오는 중...</p>
+      ) : loadError ? (
+        <p style={{ textAlign:"center", padding:"40px 20px", color:"#e0483e", fontSize:14 }}>{loadError}</p>
+      ) : visibleMains.length === 0 ? (
+        <p style={{ textAlign:"center", padding:"40px 0", color:"#9CA8B8" }}>
+          등록된 학생이 없어요. (기존 학생 관리 사이트에서 먼저 학생을 등록해주세요)
+        </p>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {visibleMains.map((s) => {
+            const siblings = siblingMap[s.id] || [];
+            const isOpen = !!expanded[s.id];
+            const grade = calcCurrentGrade(s.grade, s.joinDate);
+            return (
+              <div key={s.id} style={card}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, padding:14 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
+                    {siblings.length > 0 && (
+                      <button
+                        onClick={() => toggleExpand(s.id)}
+                        style={{ flexShrink:0, width:26, height:26, borderRadius:"50%", border:"none", background:"#eaf6ff", display:"flex", alignItems:"center", justifyContent:"center", color:"#4a4494" }}
+                      >
+                        {isOpen ? <IconChevronDown/> : <IconPlus/>}
+                      </button>
+                    )}
+                    <div style={{ minWidth:0 }}>
+                      <p style={{ margin:0, fontSize:16, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                        {s.name || "(이름 없음)"}
+                      </p>
+                      <p style={{ margin:"2px 0 0", fontSize:12, color:"#9C8F70", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                        {grade !== "-" ? grade + " · " : ""}{s.school || ""}
+                      </p>
+                    </div>
+                  </div>
+                  <button onClick={() => copyLink(s.id)} style={rowBtn(copiedId === s.id)}>
+                    {copiedId === s.id ? (<><IconCheck/> 복사됨</>) : "링크 복사"}
+                  </button>
+                </div>
+
+                {isOpen && siblings.length > 0 && (
+                  <div style={{ borderTop:"1px solid #eaf6ff", background:"#f5fbff" }}>
+                    {siblings.map((sib) => {
+                      const sibGrade = calcCurrentGrade(sib.grade, sib.joinDate);
+                      return (
+                        <div key={sib.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, padding:"12px 14px 12px 44px", borderTop:"1px solid #eaf6ff" }}>
+                          <div style={{ minWidth:0 }}>
+                            <p style={{ margin:0, fontSize:14, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                              {sib.name || "(이름 없음)"}
+                              <span style={{ marginLeft:6, fontSize:10, fontWeight:400, padding:"1px 7px", borderRadius:999, background:"#eaf6ff", color:"#4a4494" }}>형제자매</span>
+                            </p>
+                            <p style={{ margin:"2px 0 0", fontSize:12, color:"#9C8F70" }}>
+                              {sibGrade !== "-" ? sibGrade + " · " : ""}{sib.school || ""}
+                            </p>
+                          </div>
+                          <button onClick={() => copyLink(sib.id)} style={rowBtn(copiedId === sib.id)}>
+                            {copiedId === sib.id ? (<><IconCheck/> 복사됨</>) : "링크 복사"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(<PasswordGate><StudentLinksPanel /></PasswordGate>);
+</script>
+</body>
+</html>

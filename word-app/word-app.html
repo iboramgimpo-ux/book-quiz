@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DK 1029단어 그림단어장</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="firebase-shared.js"></script>
+</head>
+<body>
+
+  <!-- ===== 목록 화면 ===== -->
+  <div id="list-view">
+    <div class="top-bar">
+      <h1>그림 단어장</h1>
+      <p class="sub" id="welcome-line">단어를 터치하면 자동으로 읽어줘요</p>
+      <div class="search-row">
+        <input id="search-input" type="text" placeholder="단어 검색 (예: goat)" autocomplete="off">
+      </div>
+      <div class="alpha-strip" id="alpha-strip"></div>
+    </div>
+    <div class="word-count" id="word-count"></div>
+    <div id="grid-container"></div>
+  </div>
+
+  <!-- ===== 재생 화면 ===== -->
+  <div id="player-view" class="hidden">
+    <div class="player-top">
+      <button class="back-btn" id="back-btn">← 목록으로</button>
+      <div class="progress" id="progress-label"></div>
+    </div>
+    <div class="card-stage">
+      <img id="card-image" src="" alt="">
+    </div>
+    <div class="player-bottom">
+      <div class="status-pill" id="status-pill">단어 읽는 중...</div>
+      <button class="pause-btn" id="pause-btn">일시정지</button>
+    </div>
+  </div>
+
+  <audio id="audio-w" preload="auto"></audio>
+  <audio id="audio-d" preload="auto"></audio>
+
+  <script src="app.js"></script>
+</body>
+</html>
