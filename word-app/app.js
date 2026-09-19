@@ -132,6 +132,8 @@
   let advanceTimer = null;   // 자동재생: 다음 단어로 넘어가기 대기
   let fsActive = false;
   let frameK = 1;            // 카드 1px(원본) = 화면 몇 px
+  const viewStack = [];      // 지나온 카드 기록 (이전 버튼이 이 순서대로 되돌아감)
+  const VIEW_STACK_MAX = 50;
 
   const setStatus = (t) => { statusPill.textContent = t; };
 
@@ -380,9 +382,14 @@
     img.src = `assets/img/${code}.jpg`;
   }
 
-  function startCard(idx) {
+  function startCard(idx, remember = true) {
     stopAllAudio();
     hidePopup();
+    // 지금 보던 카드를 기록해 둠 (다음 버튼·빨간 단어 팝업 이동 때). 이전 버튼으로 돌아갈 땐 기록하지 않음
+    if (remember && idx !== currentIndex) {
+      viewStack.push(currentIndex);
+      if (viewStack.length > VIEW_STACK_MAX) viewStack.shift();
+    }
     currentIndex = idx;
     wordDone = false;
     defDone = false;
@@ -398,7 +405,11 @@
   }
 
   const goNext = () => startCard((currentIndex + 1) % words.length);
-  const goPrev = () => startCard((currentIndex - 1 + words.length) % words.length);
+  // 이전: 방금 전에 보던 카드로 돌아감 (기록이 없으면 목록 순서상 바로 앞 단어)
+  const goPrev = () => {
+    if (viewStack.length) startCard(viewStack.pop(), false);
+    else startCard((currentIndex - 1 + words.length) % words.length, false);
+  };
 
   nextBtn.addEventListener('click', () => { if (!nextBtn.disabled) goNext(); });
   prevBtn.addEventListener('click', goPrev);
@@ -428,7 +439,8 @@
     listView.classList.add('hidden');
     playerView.classList.remove('hidden');
     history.pushState({ view: 'player' }, '', '#play');
-    startCard(idx);
+    viewStack.length = 0;
+    startCard(idx, false);
   }
 
   function exitPlayer(fromPopstate) {
