@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>DK 1029단어 그림단어장</title>
 <link rel="stylesheet" href="style.css">
 <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -15,7 +15,7 @@
   <div id="list-view">
     <div class="top-bar">
       <h1>그림 단어장</h1>
-      <p class="sub" id="welcome-line">단어를 터치하면 자동으로 읽어줘요</p>
+      <p class="sub" id="welcome-line">단어를 터치하면 읽어줘요</p>
       <div class="search-row">
         <input id="search-input" type="text" placeholder="단어 검색 (예: goat)" autocomplete="off">
       </div>
@@ -28,20 +28,31 @@
   <!-- ===== 재생 화면 ===== -->
   <div id="player-view" class="hidden">
     <div class="player-top">
-      <button class="back-btn" id="back-btn">← 목록으로</button>
+      <button class="back-btn" id="back-btn">← 목록</button>
       <div class="progress" id="progress-label"></div>
-    </div>
-    <div class="card-stage">
-      <img id="card-image" src="" alt="">
-    </div>
-    <div class="player-bottom">
+      <button class="auto-btn" id="auto-btn">▶ 자동재생</button>
       <div class="status-pill" id="status-pill">단어 읽는 중...</div>
-      <button class="pause-btn" id="pause-btn">일시정지</button>
     </div>
+
+    <div class="card-stage" id="card-stage">
+      <div id="card-frame">
+        <img id="card-image" src="" alt="" draggable="false">
+        <div id="hs-layer"></div>
+        <div id="popup" class="popup hidden"></div>
+      </div>
+    </div>
+
+    <div class="player-nav">
+      <button class="nav-btn" id="prev-btn"><span class="ic">◀</span><span class="tx">이전</span></button>
+      <button class="nav-btn next" id="next-btn" disabled><span class="ic">▶</span><span class="tx">다음</span></button>
+    </div>
+
+    <div class="rotate-hint" id="rotate-hint">📱 폰을 가로로 돌리면 더 크게 볼 수 있어요</div>
   </div>
 
   <audio id="audio-w" preload="auto"></audio>
   <audio id="audio-d" preload="auto"></audio>
+  <audio id="audio-r" preload="auto"></audio>
 
   <script src="app.js"></script>
 </body>

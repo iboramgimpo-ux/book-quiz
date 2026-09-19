@@ -141,20 +141,32 @@ body {
 
 /* ---------- Player view ---------- */
 #player-view {
-  flex: 1;
+  position: fixed;
+  inset: 0;
+  z-index: 20;
   display: flex;
   flex-direction: column;
   background: var(--ink);
+  touch-action: manipulation;
+  -webkit-user-select: none;
+  user-select: none;
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
 }
 
 .player-top {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  padding: 12px 14px;
+  gap: 8px;
+  padding: calc(10px + env(safe-area-inset-top, 0px)) 12px 8px;
   background: var(--ink);
   color: #fff;
 }
+.back-btn { order: 1; }
+.progress { order: 2; margin-left: auto; }
+.auto-btn { order: 3; }
+.status-pill { order: 4; flex: 1 1 100%; }
 
 .back-btn {
   border: none;
@@ -162,7 +174,7 @@ body {
   color: #fff;
   font-family: 'Jua', sans-serif;
   font-size: 15px;
-  padding: 9px 16px;
+  padding: 8px 14px;
   border-radius: 12px;
 }
 .back-btn:active { background: rgba(255,255,255,0.28); }
@@ -173,55 +185,174 @@ body {
   color: #cfd0ff;
 }
 
-.card-stage {
-  flex: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 14px;
-  background: var(--ink);
+.auto-btn {
+  border: 2px solid rgba(255,255,255,0.5);
+  background: transparent;
+  color: #fff;
+  font-family: 'Jua', sans-serif;
+  font-size: 14px;
+  padding: 6px 12px;
+  border-radius: 999px;
 }
-
-.card-stage img {
-  max-width: 100%;
-  max-height: 100%;
-  border-radius: 18px;
-  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
-  background: #fff;
-}
-
-.player-bottom {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 18px;
-  padding: 16px 14px 26px;
-  background: var(--ink);
-}
+.auto-btn.on { background: #fff; color: var(--coral-deep); border-color: #fff; }
 
 .status-pill {
   font-family: 'Jua', sans-serif;
   font-size: 15px;
   color: #fff;
   background: var(--coral);
-  padding: 9px 20px;
+  padding: 8px 16px;
   border-radius: 999px;
-  min-width: 160px;
   text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.pause-btn {
-  border: none;
-  background: #fff;
-  color: var(--ink);
-  font-family: 'Jua', sans-serif;
-  font-size: 15px;
-  padding: 9px 18px;
-  border-radius: 999px;
+.card-stage {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  background: var(--ink);
 }
-.pause-btn:active { background: var(--sky-deep); }
+
+#card-frame {
+  position: relative;
+  width: 320px;
+  height: 165px;              /* JS가 화면에 맞게 다시 계산 */
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 18px 40px rgba(0,0,0,0.35);
+}
+#card-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  pointer-events: none;
+  -webkit-user-drag: none;
+}
+
+/* 카드 위 투명 터치 영역 */
+#hs-layer { position: absolute; inset: 0; }
+.hs {
+  position: absolute;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 8px;
+  -webkit-tap-highlight-color: transparent;
+  cursor: pointer;
+}
+.hs.red:active  { background: rgba(224, 72, 62, 0.30); }
+.hs.blue:active { background: rgba(60, 40, 255, 0.22); }
+.hs.def:active  { background: rgba(255, 190, 40, 0.35); }
+
+/* 빨간 단어 그림 팝업 */
+.popup {
+  position: absolute;
+  z-index: 6;
+  display: flex;
+  gap: 8px;
+  padding: 7px;
+  background: var(--paper);
+  border: 3px solid var(--coral);
+  border-radius: 14px;
+  box-shadow: 0 10px 26px rgba(0,0,0,0.35);
+  animation: pop-in .14s ease-out;
+}
+@keyframes pop-in { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.pop-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: 'Jua', sans-serif;
+  font-size: 14px;
+  color: var(--ink);
+  cursor: pointer;
+}
+.pop-item:active { transform: scale(0.95); }
+.pop-pic {
+  background-repeat: no-repeat;
+  background-color: #fff;
+  border-radius: 8px;
+}
+
+.player-nav {
+  display: flex;
+  gap: 12px;
+  padding: 6px 14px calc(16px + env(safe-area-inset-bottom, 0px));
+  background: var(--ink);
+}
+.nav-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: none;
+  border-radius: 16px;
+  padding: 12px 10px;
+  background: rgba(255,255,255,0.16);
+  color: #fff;
+  font-family: 'Jua', sans-serif;
+  font-size: 17px;
+}
+.nav-btn.next { background: var(--coral); }
+.nav-btn:active { filter: brightness(1.15); }
+.nav-btn:disabled { opacity: 0.3; filter: grayscale(0.6); }
+.nav-btn .ic { font-size: 18px; }
+
+.rotate-hint {
+  display: none;
+  text-align: center;
+  font-family: 'Gaegu', sans-serif;
+  font-size: 15px;
+  color: #cfd0ff;
+  padding: 0 12px calc(8px + env(safe-area-inset-bottom, 0px));
+  background: var(--ink);
+}
+@media (orientation: portrait) { .rotate-hint.show { display: block; } }
+
+/* 가로 모드 (폰): 컨트롤은 위 한 줄 + 좌우 큰 버튼, 카드가 화면을 최대한 차지 */
+@media (orientation: landscape) and (max-height: 560px) {
+  #player-view {
+    display: grid;
+    grid-template-columns: 78px 1fr 78px;
+    grid-template-rows: auto 1fr;
+  }
+  .player-top { grid-column: 1 / -1; grid-row: 1; padding: calc(6px + env(safe-area-inset-top, 0px)) 12px 4px; flex-wrap: nowrap; }
+  .progress { margin-left: 0; order: 2; }
+  .status-pill { order: 3; flex: 1 1 auto; min-width: 0; padding: 6px 12px; font-size: 14px; }
+  .auto-btn { order: 4; white-space: nowrap; }
+  .card-stage { grid-column: 2; grid-row: 2; padding: 4px; }
+  .player-nav { display: contents; }
+  #prev-btn, #next-btn {
+    grid-row: 2;
+    align-self: center;
+    justify-self: center;
+    flex-direction: column;
+    gap: 2px;
+    width: 64px;
+    height: 64px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 12px;
+  }
+  #prev-btn { grid-column: 1; }
+  #next-btn { grid-column: 3; }
+  .nav-btn .ic { font-size: 22px; }
+  .rotate-hint { display: none !important; }
+}
 
 @media (min-width: 700px) {
   .grid { grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
-  .card-stage img { max-width: 720px; }
 }
