@@ -237,6 +237,29 @@ body {
   -webkit-user-drag: none;
 }
 
+/* 움직이는 그림(원본 애니메이션 영상) - 카드 이미지 바로 위에 겹쳐서 재생 */
+#motion-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 14px;
+  background: #fff;
+  object-fit: fill;
+  pointer-events: none;
+}
+/* 효과음만 있는 단어: 소리가 나는 동안 그림 둘레가 콩닥콩닥 */
+.pulse {
+  position: absolute;
+  border-radius: 14px;
+  pointer-events: none;
+  animation: pulse-ring 0.9s ease-out infinite;
+}
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(224, 72, 62, 0.55); }
+  100% { box-shadow: 0 0 0 16px rgba(224, 72, 62, 0); }
+}
+
 /* 카드 위 투명 터치 영역 */
 #hs-layer { position: absolute; inset: 0; }
 .hs {
@@ -251,6 +274,7 @@ body {
 .hs.red:active  { background: rgba(224, 72, 62, 0.30); }
 .hs.blue:active { background: rgba(60, 40, 255, 0.22); }
 .hs.def:active  { background: rgba(255, 190, 40, 0.35); }
+.hs.pic:active  { background: rgba(60, 140, 255, 0.16); }
 
 /* 빨간 단어 그림 팝업 */
 .popup {

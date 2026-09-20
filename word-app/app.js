@@ -3,6 +3,8 @@
 
   const GAP_AFTER_WORD_MS = 3000;   // 단어 읽고 나서 쉬는 시간
   const GAP_AFTER_DEF_MS  = 1200;   // 영영풀이 끝나고 다음 단어로 넘어가기 전 쉬는 시간
+  const GAP_BEFORE_MOTION_MS = 800; // 단어 읽고 나서 그림이 움직이기 시작하기까지
+  const GAP_AFTER_MOTION_MS  = 1000; // 그림 움직임이 끝나고 영영풀이를 읽기까지
 
   const listView   = document.getElementById('list-view');
   const playerView = document.getElementById('player-view');
@@ -27,6 +29,9 @@
   const audioW = document.getElementById('audio-w');
   const audioD = document.getElementById('audio-d');
   const audioR = document.getElementById('audio-r');
+  const audioS = document.getElementById('audio-s');
+  const motionVideo = document.getElementById('motion-video');
+  const pulse = document.getElementById('pulse');
   const welcomeLine = document.getElementById('welcome-line');
 
   // ---------- 학생 식별 (관리자 페이지에서 만들어준 링크의 ?student= 값) ----------
@@ -48,6 +53,8 @@
   const words = await fetch('words.json').then(r => r.json());
   // 터치 영역 좌표 (파란 단어 / 영영풀이 첫 줄 / 빨간 단어 / 그림). 없어도 앱은 동작합니다.
   const hotspots = await fetch('hotspots.json').then(r => r.json()).catch(() => ({}));
+  // 단어별 움직임 정보: { t:'v' 원본 애니메이션 영상 | t:'s' 효과음만, d:길이(초) }. 없으면 예전처럼 단어→영영풀이만.
+  const motion = await fetch('motion.json').then(r => r.json()).catch(() => ({}));
   const indexOfCode = new Map(words.map((c, i) => [c, i]));
 
   // ---------- 목록 화면 그리기 ----------
@@ -126,6 +133,7 @@
   let inPlayer = false;
   let wordDone = false;      // 이 카드에서 단어를 끝까지 들었는지
   let defDone = false;       // 이 카드에서 영영풀이를 끝까지 들었는지
+  let motionDone = true;     // 이 카드에서 움직이는 그림(+효과음)을 끝까지 봤는지 (움직임이 없는 단어는 처음부터 true)
   let autoMode = false;      // 자동재생(예전 방식) 켜짐 여부
   let token = 0;             // 재생 세션 토큰 (끼어들기/뒤로가기 경쟁상태 방지)
   let timer = null;          // 단어→영영풀이 사이 대기
@@ -195,8 +203,14 @@
     token++;
     clearTimeout(timer); timer = null;
     clearTimeout(advanceTimer); advanceTimer = null;
-    [audioW, audioD, audioR].forEach(a => { try { a.pause(); } catch (e) {} });
+    [audioW, audioD, audioR, audioS, motionVideo].forEach(a => { try { a.pause(); } catch (e) {} });
+    hideMotionVisual();
     try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) {}
+  }
+
+  function hideMotionVisual() {
+    motionVideo.classList.add('hidden');
+    pulse.classList.add('hidden');
   }
 
   function playMp3(el, src, done, blockedMsg) {
@@ -235,13 +249,73 @@
     }, '👆 나팔 그림을 터치하면 읽어줘요');
   }
 
-  // 어떤 소리가 끝날 때마다: 아직 안 들은 게 있으면 이어서, 다 들었으면 "완료" 처리
+  // 그림 움직임 + 효과음 (원본 애니메이션 영상 / 효과음만 있는 단어는 그림 둘레가 콩닥콩닥)
+  function playMotion() {
+    const code = words[currentIndex], m = motion[code];
+    if (!m) { motionDone = true; afterPlay(); return; }
+    stopAllAudio();
+    const my = token;
+    const done = () => {
+      if (my !== token) return;
+      hideMotionVisual();
+      motionDone = true;
+      afterPlay();
+    };
+    setStatus('🔊 그림이 움직여요');
+    if (m.t === 'v') {
+      const url = `assets/ani/${code}.mp4`;
+      motionVideo.onended = done;
+      motionVideo.onerror = done;
+      motionVideo.onplaying = () => { if (my === token) motionVideo.classList.remove('hidden'); };
+      motionVideo.muted = false;
+      if (motionVideo.getAttribute('src') !== url) motionVideo.src = url;
+      else { try { motionVideo.currentTime = 0; } catch (e) {} }
+      const p = motionVideo.play();
+      if (p && p.catch) p.catch(err => {
+        if (my !== token) return;
+        if (err && err.name === 'NotAllowedError') {       // 소리 재생이 막혔으면 소리 없이라도 움직이게
+          motionVideo.muted = true;
+          setStatus('👆 그림을 터치하면 소리가 나요');
+          const p2 = motionVideo.play();
+          if (p2 && p2.catch) p2.catch(done);
+        } else done();
+      });
+    } else {
+      const h = hotspots[code];
+      if (h && h.p) {
+        const [x, y, w, hh] = h.p;
+        pulse.style.left = (x / CARD_W * 100) + '%';
+        pulse.style.top = (y / CARD_H * 100) + '%';
+        pulse.style.width = (w / CARD_W * 100) + '%';
+        pulse.style.height = (hh / CARD_H * 100) + '%';
+        pulse.classList.remove('hidden');
+      }
+      playMp3(audioS, `assets/sfx/${code}.mp3`, done, '👆 그림을 터치하면 소리가 나요');
+    }
+  }
+
+  // 다음 영상을 미리 받아 둠 (단어가 끝나고 곧바로 재생될 수 있게)
+  function prepareMotion(code) {
+    const m = motion[code];
+    if (m && m.t === 'v') {
+      const url = `assets/ani/${code}.mp4`;
+      if (motionVideo.getAttribute('src') !== url) { motionVideo.src = url; try { motionVideo.load(); } catch (e) {} }
+    }
+  }
+
+  // 어떤 소리가 끝날 때마다: 단어 → (그림 움직임+효과음) → 영영풀이 순서로 아직 안 한 게 있으면 이어서, 다 했으면 "완료" 처리
   function afterPlay() {
     const my = token;
     if (!wordDone) { playWord(); return; }
+    const hasMotion = !!motion[words[currentIndex]];
+    if (hasMotion && !motionDone) {
+      setStatus('잠시 후 그림이 움직여요...');
+      timer = setTimeout(() => { if (my === token) playMotion(); }, GAP_BEFORE_MOTION_MS);
+      return;
+    }
     if (!defDone) {
       setStatus('잠시 후 뜻풀이...');
-      timer = setTimeout(() => { if (my === token) playDef(); }, GAP_AFTER_WORD_MS);
+      timer = setTimeout(() => { if (my === token) playDef(); }, hasMotion ? GAP_AFTER_MOTION_MS : GAP_AFTER_WORD_MS);
       return;
     }
     complete();
@@ -369,6 +443,7 @@
     hsLayer.innerHTML = '';
     const h = hotspots[code];
     if (!h) return;
+    if (motion[code] && h.p) addHotspot(h.p, 4, 4, 'pic', '그림 다시 보기', () => playMotion());   // 그림을 터치하면 움직임+효과음 다시
     addHotspot(h.t, 6, 6, 'blue', '단어 다시 듣기', () => playWord());
     addHotspot(h.d, 0, 3, 'def', '영영풀이 다시 듣기', () => playDef());
     h.r.forEach(entry => {
@@ -393,14 +468,16 @@
     currentIndex = idx;
     wordDone = false;
     defDone = false;
-    nextBtn.disabled = true;
     const code = words[idx];
+    motionDone = !motion[code];
+    nextBtn.disabled = true;
     progressLabel.textContent = `${idx + 1} / ${words.length}`;
     cardImage.src = `assets/img/${code}.jpg`;
     cardImage.alt = code;
     renderHotspots(code);
     fitCard();
     preloadImage(words[(idx + 1) % words.length]);
+    prepareMotion(code);
     playWord();
   }
 
