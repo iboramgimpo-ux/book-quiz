@@ -144,8 +144,8 @@ function StudentLinksPanel() {
 
   // 이 admin.html이 있는 위치를 기준으로 word-app.html의 경로를 만듭니다.
   const wordAppUrl = (id) => {
-    const base = location.origin + location.pathname.replace(/admin\.html$/, "");
-    return base + "word-app.html?student=" + id;
+    // 주소창에 admin / admin.html 어느 쪽으로 들어와도 같은 폴더의 word-app.html로 연결됩니다.
+    return new URL("word-app.html?student=" + encodeURIComponent(id), location.href).href;
   };
 
   const copyLink = (id) => {
