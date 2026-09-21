@@ -55,8 +55,6 @@
   const hotspots = await fetch('hotspots.json').then(r => r.json()).catch(() => ({}));
   // 단어별 움직임 정보: { t:'v' 원본 애니메이션 영상 | t:'s' 효과음만, d:길이(초) }. 없으면 예전처럼 단어→영영풀이만.
   const motion = await fetch('motion.json').then(r => r.json()).catch(() => ({}));
-  // 빨간 단어 중 카드 단어와 모양이 다른 것(복수형·-ing·비교급 등)의 녹음 파일 목록. 없으면 TTS로 읽어줍니다.
-  const redAudio = new Set(await fetch('red_audio.json').then(r => r.json()).catch(() => []));
   const indexOfCode = new Map(words.map((c, i) => [c, i]));
 
   // ---------- 목록 화면 그리기 ----------
@@ -196,8 +194,11 @@
     cardFrame.style.width = Math.floor(CARD_W * frameK) + 'px';
     cardFrame.style.height = Math.floor(CARD_H * frameK) + 'px';
   }
-  if (window.ResizeObserver) new ResizeObserver(() => { fitCard(); hidePopup(); }).observe(cardStage);
-  window.addEventListener('resize', () => { fitCard(); hidePopup(); });
+  // 크기가 바뀌면(PC에서는 스크롤바·창 크기 변화로 자주 발생) 팝업을 닫지 않고 새 크기에 맞춰 다시 배치
+  let popupEntry = null;   // 지금 떠 있는 팝업(없으면 null)
+  const refitAndRepop = () => { fitCard(); if (popupEntry) showPopup(popupEntry); };
+  if (window.ResizeObserver) new ResizeObserver(refitAndRepop).observe(cardStage);
+  window.addEventListener('resize', refitAndRepop);
   window.addEventListener('orientationchange', () => setTimeout(fitCard, 300));
 
   // ----- 오디오 제어 -----
@@ -368,13 +369,11 @@
     const done = () => { if (my === token) afterPlay(); };
     const first = codes[0];
     const exact = first && hotspots[first] && hotspots[first].w === text;
-    const rkey = text.toLowerCase().replace(/[^a-z]/g, '');
     if (exact) playMp3(audioR, `assets/audio/${first}_w.mp3`, done);   // 카드에 있는 단어 → 녹음된 발음
-    else if (redAudio.has(rkey)) playMp3(audioR, `assets/audio/red/${rkey}.mp3`, done);   // 변형된 단어 → 원본 CD의 녹음
     else speak(text, done, first);                                     // 복수형·활용형 등 → 화면에 보이는 그대로 TTS
   }
 
-  function hidePopup() { popup.classList.add('hidden'); popup.innerHTML = ''; }
+  function hidePopup() { popupEntry = null; popup.classList.add('hidden'); popup.innerHTML = ''; }
 
   function showPopup(entry) {
     const codes = entry[5];
@@ -407,6 +406,7 @@
       popup.appendChild(item);
     });
     if (!popup.children.length) { hidePopup(); return; }
+    popupEntry = entry;
     // 위치: 누른 단어 바로 아래 (자리가 없으면 위), 카드 안쪽으로 맞춤
     popup.style.visibility = 'hidden';
     popup.classList.remove('hidden');
