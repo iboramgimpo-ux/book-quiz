@@ -1,4 +1,5 @@
-@import url('https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@400;700&display=swap');
+/* 구글 폰트는 style.css의 @import 대신 HTML <head>의 <link rel="preconnect">+<link rel="stylesheet">로 불러옵니다.
+   (@import는 style.css를 다 읽어야 폰트 요청이 시작되는 순차 구조라 더 느립니다.) */
 
 :root {
   --ink:       #241f5e;   /* card title indigo */
