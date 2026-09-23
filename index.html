@@ -31,7 +31,13 @@
   const db = firebase.firestore();
   // iOS Safari: 캐시 설정으로 재방문 시 속도 개선
   db.settings({ cacheSizeBytes: firebase.firestore.CACHE_SIZE_UNLIMITED });
-  db.enablePersistence({ synchronizeTabs: false }).catch(() => {});
+  // 오프라인 캐시(IndexedDB) 준비는 선생님 화면에서만: 여러 학생 자료를 반복해서 보는 관리자는 이득이 크지만,
+  // Firebase 측에서도 초기화가 최대 1초 가까이 걸릴 수 있다고 밝힌 기능이라(firebase-js-sdk #1697),
+  // 학생은 한 번 퀴즈 풀고 나가는 화면이라 이득보다 로딩 지연이 더 큽니다.
+  // 아이폰 사파리는 IndexedDB 자체에 알려진 버그도 있어(firebase-js-sdk #1670), 학생 화면에서는 아예 건너뜁니다.
+  if (!new URLSearchParams(location.search).get('student')) {
+    db.enablePersistence({ synchronizeTabs: false }).catch(() => {});
+  }
 </script>
 
 <!-- mammoth(docx파서)와 폰트는 관리자 전용 — 학생 접속 시 스킵해서 로딩 속도 개선 -->
