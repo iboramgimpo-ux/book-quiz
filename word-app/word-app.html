@@ -4,23 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>DK 1029단어 그림단어장</title>
-
-<!-- 폰트/Firebase DNS 사전 연결 (iOS Safari 로딩 속도 개선) -->
-<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
-<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
-<link rel="dns-prefetch" href="https://fonts.googleapis.com">
-<link rel="dns-prefetch" href="https://fonts.gstatic.com">
-<link rel="dns-prefetch" href="https://www.gstatic.com">
-<link rel="dns-prefetch" href="https://firestore.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@400;700&display=swap">
 <link rel="stylesheet" href="style.css">
-
-<!-- Firebase는 학생 환영 메시지에만 쓰여서 화면 렌더링을 막지 않도록 defer -->
-<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script defer src="firebase-shared.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script src="firebase-shared.js"></script>
 </head>
 <body>
 
@@ -59,7 +46,7 @@
 
     <div class="player-nav">
       <button class="nav-btn" id="prev-btn"><span class="ic">◀</span><span class="tx">이전</span></button>
-      <button class="nav-btn next" id="next-btn" disabled><span class="ic">▶</span><span class="tx">다음</span></button>
+      <button class="nav-btn next" id="next-btn"><span class="ic">▶</span><span class="tx">다음</span></button>
     </div>
 
     <div class="rotate-hint" id="rotate-hint">📱 폰을 가로로 돌리면 더 크게 볼 수 있어요</div>
@@ -70,6 +57,6 @@
   <audio id="audio-r" preload="auto"></audio>
   <audio id="audio-s" preload="auto"></audio>
 
-  <script defer src="app.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>

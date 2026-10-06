@@ -49,14 +49,12 @@
       .catch(() => { /* 학생 정보를 못 불러와도 앱은 그대로 동작 */ });
   }
 
-  // ---------- 데이터 로드 (세 파일을 동시에 요청 — 순서대로 기다리지 않음) ----------
-  const [words, hotspots, motion] = await Promise.all([
-    fetch('words.json').then(r => r.json()),
-    // 터치 영역 좌표 (파란 단어 / 영영풀이 첫 줄 / 빨간 단어 / 그림). 없어도 앱은 동작합니다.
-    fetch('hotspots.json').then(r => r.json()).catch(() => ({})),
-    // 단어별 움직임 정보: { t:'v' 원본 애니메이션 영상 | t:'s' 효과음만, d:길이(초) }. 없으면 예전처럼 단어→영영풀이만.
-    fetch('motion.json').then(r => r.json()).catch(() => ({})),
-  ]);
+  // ---------- 데이터 로드 ----------
+  const words = await fetch('words.json').then(r => r.json());
+  // 터치 영역 좌표 (파란 단어 / 영영풀이 첫 줄 / 빨간 단어 / 그림). 없어도 앱은 동작합니다.
+  const hotspots = await fetch('hotspots.json').then(r => r.json()).catch(() => ({}));
+  // 단어별 움직임 정보: { t:'v' 원본 애니메이션 영상 | t:'s' 효과음만, d:길이(초) }. 없으면 예전처럼 단어→영영풀이만.
+  const motion = await fetch('motion.json').then(r => r.json()).catch(() => ({}));
   const indexOfCode = new Map(words.map((c, i) => [c, i]));
 
   // ---------- 목록 화면 그리기 ----------
@@ -327,7 +325,6 @@
   }
 
   function complete() {
-    nextBtn.disabled = false;
     if (autoMode) {
       setStatus('잠시 후 다음 단어로...');
       const my = token;
@@ -476,7 +473,6 @@
     defDone = false;
     const code = words[idx];
     motionDone = !motion[code];
-    nextBtn.disabled = true;
     progressLabel.textContent = `${idx + 1} / ${words.length}`;
     cardImage.src = `assets/img/${code}.jpg`;
     cardImage.alt = code;
@@ -494,7 +490,7 @@
     else startCard((currentIndex - 1 + words.length) % words.length, false);
   };
 
-  nextBtn.addEventListener('click', () => { if (!nextBtn.disabled) goNext(); });
+  nextBtn.addEventListener('click', () => { goNext(); });   // 재생 중이어도 항상 눌러서 다음 단어로 넘어갈 수 있음
   prevBtn.addEventListener('click', goPrev);
 
   // ----- 자동재생 버튼 (켜면 예전처럼 알아서 다음 단어로) -----
