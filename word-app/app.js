@@ -49,12 +49,17 @@
       .catch(() => { /* 학생 정보를 못 불러와도 앱은 그대로 동작 */ });
   }
 
-  // ---------- 데이터 로드 ----------
-  const words = await fetch('words.json').then(r => r.json());
-  // 터치 영역 좌표 (파란 단어 / 영영풀이 첫 줄 / 빨간 단어 / 그림). 없어도 앱은 동작합니다.
-  const hotspots = await fetch('hotspots.json').then(r => r.json()).catch(() => ({}));
-  // 단어별 움직임 정보: { t:'v' 원본 애니메이션 영상 | t:'s' 효과음만, d:길이(초) }. 없으면 예전처럼 단어→영영풀이만.
-  const motion = await fetch('motion.json').then(r => r.json()).catch(() => ({}));
+  // ---------- 데이터 로드 (파일들을 동시에 요청 — 순서대로 기다리지 않음) ----------
+  const [words, hotspots, motion, redAudioList] = await Promise.all([
+    fetch('words.json').then(r => r.json()),
+    // 터치 영역 좌표 (파란 단어 / 영영풀이 첫 줄 / 빨간 단어 / 그림). 없어도 앱은 동작합니다.
+    fetch('hotspots.json').then(r => r.json()).catch(() => ({})),
+    // 단어별 움직임 정보: { t:'v' 원본 애니메이션 영상 | t:'s' 효과음만, d:길이(초) }. 없으면 예전처럼 단어→영영풀이만.
+    fetch('motion.json').then(r => r.json()).catch(() => ({})),
+    // 빨간 단어 중 카드 단어와 모양이 다른 것(복수형·-ing·비교급 등)의 녹음 파일 목록. 없으면 TTS로 읽어줍니다.
+    fetch('red_audio.json').then(r => r.json()).catch(() => []),
+  ]);
+  const redAudio = new Set(redAudioList);
   const indexOfCode = new Map(words.map((c, i) => [c, i]));
 
   // ---------- 목록 화면 그리기 ----------
@@ -368,8 +373,10 @@
     const done = () => { if (my === token) afterPlay(); };
     const first = codes[0];
     const exact = first && hotspots[first] && hotspots[first].w === text;
-    if (exact) playMp3(audioR, `assets/audio/${first}_w.mp3`, done);   // 카드에 있는 단어 → 녹음된 발음
-    else speak(text, done, first);                                     // 복수형·활용형 등 → 화면에 보이는 그대로 TTS
+    const rkey = text.toLowerCase().replace(/[^a-z]/g, '');
+    if (exact) playMp3(audioR, `assets/audio/${first}_w.mp3`, done);              // 카드에 있는 단어 → 녹음된 발음
+    else if (redAudio.has(rkey)) playMp3(audioR, `assets/audio/red/${rkey}.mp3`, done); // 복수형·활용형 등 → 녹음된 발음
+    else speak(text, done, first);                                                // 녹음이 없는 것만 TTS
   }
 
   function hidePopup() { popupEntry = null; popup.classList.add('hidden'); popup.innerHTML = ''; }

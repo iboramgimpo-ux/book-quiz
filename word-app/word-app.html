@@ -4,10 +4,23 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <title>DK 1029단어 그림단어장</title>
+
+<!-- 폰트/Firebase DNS 사전 연결 (iOS Safari 로딩 속도 개선) -->
+<link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link rel="dns-prefetch" href="https://fonts.googleapis.com">
+<link rel="dns-prefetch" href="https://fonts.gstatic.com">
+<link rel="dns-prefetch" href="https://www.gstatic.com">
+<link rel="dns-prefetch" href="https://firestore.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@400;700&display=swap">
 <link rel="stylesheet" href="style.css">
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
-<script src="firebase-shared.js"></script>
+
+<!-- Firebase는 학생 환영 메시지에만 쓰여서 화면 렌더링을 막지 않도록 defer -->
+<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+<script defer src="firebase-shared.js"></script>
 </head>
 <body>
 
@@ -57,6 +70,6 @@
   <audio id="audio-r" preload="auto"></audio>
   <audio id="audio-s" preload="auto"></audio>
 
-  <script src="app.js"></script>
+  <script defer src="app.js"></script>
 </body>
 </html>
