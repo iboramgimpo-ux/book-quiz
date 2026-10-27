@@ -51,14 +51,24 @@
     document.body.appendChild(g);
   }
 
+  // ---------- 학습 기록 저장 위치: kv 컬렉션의 "dkprog_학생ID" 문서 ----------
+  let studentName = '학생';
+  let prog = null;           // 서버에 저장된 학습 기록 (없으면 null)
+  let progReadOk = false;    // 기록을 정상적으로 읽었는지 (읽기 실패 시 덮어쓰기 방지)
+  const progDocId = studentId ? 'dkprog_' + studentId : null;
+
   // 'ok' | 'invalid' | 'error'
   async function verifyStudent() {
     if (!studentId || typeof db === 'undefined') return 'invalid';
     try {
-      const doc = await db.collection('students').doc(studentId).get();
+      const [doc, pd] = await Promise.all([
+        db.collection('students').doc(studentId).get(),
+        db.collection('kv').doc(progDocId).get().catch(() => null),
+      ]);
       if (!doc.exists) return 'invalid';
-      const name = doc.data().name || '학생';
-      welcomeLine.textContent = `${name} 학생, 안녕하세요! 단어를 터치하면 읽어줘요`;
+      studentName = doc.data().name || '학생';
+      welcomeLine.textContent = `${studentName} 학생, 안녕하세요! 단어를 터치하면 읽어줘요`;
+      if (pd) { progReadOk = true; prog = pd.exists ? pd.data() : null; }
       return 'ok';
     } catch (e) {
       return 'error';
@@ -91,6 +101,82 @@
 
   const redAudio = new Set(redAudioList);
   const indexOfCode = new Map(words.map((c, i) => [c, i]));
+
+  // ---------- 학습 기록 (몇 바퀴 / 어디까지) ----------
+  const FV = firebase.firestore.FieldValue;
+  const LAST_IDX = words.length - 1;
+  let saveTimer = null;
+  let dirty = null;          // 아직 서버에 못 보낸 변경 내용
+
+  function queueSave(fields) {
+    dirty = Object.assign(dirty || {}, fields);
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flushSave, 2000);
+  }
+  function flushSave() {
+    clearTimeout(saveTimer); saveTimer = null;
+    if (!dirty || !progDocId) return;
+    const data = dirty; dirty = null;
+    db.collection('kv').doc(progDocId)
+      .set(Object.assign({ name: studentName, total: words.length, updatedAt: FV.serverTimestamp() }, data), { merge: true })
+      .catch(() => { dirty = Object.assign(data, dirty || {}); });   // 실패하면 다음 기회에 다시 보냄
+  }
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flushSave(); });
+  window.addEventListener('pagehide', flushSave);
+
+  // 단어 카드를 열 때 호출 (목록에서 터치 / 다음 버튼)
+  function trackProgress(idx) {
+    if (!prog || typeof prog.cycle !== 'number') return;      // 바퀴 수 입력 전에는 기록하지 않음
+    // 마지막 단어까지 갔다가 첫 단어로 돌아오면 한 바퀴 완료 (서버 값을 +1 하므로 관리자가 고친 값도 유지됨)
+    if (prog.reachedEnd && idx === 0) {
+      prog.cycle += 1; prog.maxIdx = 0; prog.reachedEnd = false;
+      queueSave({ cycle: FV.increment(1), maxIdx: 0, lastWord: words[0], reachedEnd: false });
+      return;
+    }
+    const cur = typeof prog.maxIdx === 'number' ? prog.maxIdx : -1;
+    if (idx > cur) {
+      prog.maxIdx = idx;
+      if (idx === LAST_IDX) prog.reachedEnd = true;
+      queueSave({ maxIdx: idx, lastWord: words[idx], reachedEnd: !!prog.reachedEnd });
+    }
+  }
+
+  // 처음 한 번만: 현재 몇 바퀴인지 학생이 직접 입력
+  function askCycleIfNeeded() {
+    if (!progReadOk) return;                                   // 기록을 못 읽었으면 묻지 않음 (기존 기록 보호)
+    if (prog && typeof prog.cycle === 'number') return;
+    const ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(36,31,94,.88);display:flex;align-items:center;justify-content:center;padding:20px;';
+    ov.innerHTML = '<div style="background:#fffdf8;border-radius:20px;padding:28px 22px;max-width:340px;width:100%;text-align:center;font-family:Jua,sans-serif;color:#241f5e">'
+      + '<p id="cy-msg" style="font-size:20px;line-height:1.5;margin:0 0 16px"></p>'
+      + '<input id="cy-in" type="number" inputmode="numeric" min="1" max="10" placeholder="1 ~ 10" style="width:100%;font-size:28px;text-align:center;padding:10px;border-radius:12px;border:2px solid #cdeaff;outline:none;font-family:inherit;box-sizing:border-box">'
+      + '<p id="cy-err" style="color:#e0483e;font-size:14px;min-height:20px;margin:8px 0 4px"></p>'
+      + '<button id="cy-ok" style="width:100%;padding:12px;border:none;border-radius:12px;background:#241f5e;color:#fff;font-size:17px;font-family:inherit">확인</button>'
+      + '</div>';
+    document.body.appendChild(ov);
+    ov.querySelector('#cy-msg').textContent = `${studentName} 학생! 현재 DK 몇 바퀴인지 입력하세요! (숫자만)`;
+    const input = ov.querySelector('#cy-in');
+    const err = ov.querySelector('#cy-err');
+    const ok = ov.querySelector('#cy-ok');
+    async function submit() {
+      const v = input.value.trim();
+      const n = Number(v);
+      if (!/^\d+$/.test(v) || n < 1 || n > 10) { err.textContent = '1부터 10 사이의 숫자만 입력해 주세요.'; return; }
+      ok.disabled = true; err.textContent = '';
+      try {
+        await db.collection('kv').doc(progDocId).set(
+          { cycle: n, name: studentName, total: words.length, cycleSetAt: FV.serverTimestamp() }, { merge: true });
+        prog = { cycle: n, maxIdx: -1, reachedEnd: false };
+        ov.remove();
+      } catch (e) {
+        ok.disabled = false;
+        err.textContent = '저장하지 못했어요. 인터넷을 확인하고 다시 눌러 주세요.';
+      }
+    }
+    ok.addEventListener('click', submit);
+    input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+  }
+  askCycleIfNeeded();
 
   // ---------- 목록 화면 그리기 ----------
   function buildGrid(filterText) {
@@ -520,7 +606,7 @@
     playWord();
   }
 
-  const goNext = () => startCard((currentIndex + 1) % words.length);
+  const goNext = () => { const n = (currentIndex + 1) % words.length; startCard(n); trackProgress(n); };
   // 이전: 방금 전에 보던 카드로 돌아감 (기록이 없으면 목록 순서상 바로 앞 단어)
   const goPrev = () => {
     if (viewStack.length) startCard(viewStack.pop(), false);
@@ -557,6 +643,7 @@
     history.pushState({ view: 'player' }, '', '#play');
     viewStack.length = 0;
     startCard(idx, false);
+    trackProgress(idx);
   }
 
   function exitPlayer(fromPopstate) {

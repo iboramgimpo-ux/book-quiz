@@ -114,13 +114,43 @@ function PasswordGate({ children }) {
   );
 }
 
-function StudentLinksPanel() {
+const PROG_PREFIX = "dkprog_";   // word-app이 학생별 학습 기록을 저장하는 문서 이름 앞부분
+
+function fmtDate(ts) {
+  try { const d = ts.toDate(); return (d.getMonth() + 1) + "/" + d.getDate(); } catch (e) { return ""; }
+}
+function getCycle(p) { return p && typeof p.cycle === "number" ? p.cycle : null; }
+function recordText(p) {
+  const cyc = getCycle(p);
+  if (cyc === null) return null;
+  if (typeof p.maxIdx !== "number" || p.maxIdx < 0 || !p.lastWord) return cyc + "바퀴 - 아직 학습 기록 없음";
+  return cyc + "바퀴 - " + String(p.lastWord).toLowerCase() + "까지 완료";
+}
+
+function AdminApp() {
+  const [tab, setTab] = useState("links");
   const [allStudents, setAllStudents] = useState([]);
+  const [progress, setProgress] = useState({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [copiedId, setCopiedId] = useState(null);
-  const [search, setSearch] = useState("");
-  const [expanded, setExpanded] = useState({});
+  const [progressError, setProgressError] = useState("");
+  const [reloading, setReloading] = useState(false);
+
+  const loadProgress = async () => {
+    try {
+      const snap = await db.collection("kv")
+        .where(firebase.firestore.FieldPath.documentId(), ">=", PROG_PREFIX)
+        .where(firebase.firestore.FieldPath.documentId(), "<", PROG_PREFIX + "\uf8ff")
+        .get();
+      const map = {};
+      snap.forEach((doc) => { map[doc.id.slice(PROG_PREFIX.length)] = doc.data(); });
+      setProgress(map);
+      setProgressError("");
+    } catch (e) {
+      console.error("학습 기록 불러오기 실패:", e);
+      setProgressError("학습 기록을 불러오지 못했어요. Firestore 보안규칙에서 kv 컬렉션 읽기 권한을 확인해주세요.");
+    }
+  };
 
   useEffect(() => {
     (async () => {
@@ -133,9 +163,45 @@ function StudentLinksPanel() {
         console.error("학생 목록 불러오기 실패:", e);
         setLoadError("학생 목록을 불러오지 못했어요. Firestore 보안규칙에서 이 사이트의 읽기 권한을 허용했는지 확인해주세요.");
       }
+      await loadProgress();
       setLoading(false);
     })();
   }, []);
+
+  const reload = async () => { setReloading(true); await loadProgress(); setReloading(false); };
+
+  // 관리자가 바퀴 수를 직접 고칠 때 (학생이 잘못 입력한 경우)
+  const saveCycle = async (student, n) => {
+    await db.collection("kv").doc(PROG_PREFIX + student.id).set({ cycle: n, name: student.name || "" }, { merge: true });
+    setProgress((prev) => ({ ...prev, [student.id]: { ...(prev[student.id] || {}), cycle: n, name: student.name || "" } }));
+  };
+
+  const tabBtn = (active) => ({
+    flex:1, padding:"10px 0", borderRadius:12, border:"none", fontFamily:"'Jua',sans-serif", fontSize:15,
+    background: active ? "#241f5e" : "#fff", color: active ? "#fff" : "#4a4494",
+    boxShadow: active ? "none" : "inset 0 0 0 2px #cdeaff",
+  });
+
+  return (
+    <div>
+      <div style={{ maxWidth:640, margin:"0 auto", padding:"16px 16px 0", display:"flex", gap:8 }}>
+        <button style={tabBtn(tab === "links")} onClick={() => setTab("links")}>학생 링크</button>
+        <button style={tabBtn(tab === "records")} onClick={() => setTab("records")}>학생 기록</button>
+      </div>
+      {tab === "links"
+        ? <StudentLinksPanel allStudents={allStudents} loading={loading} loadError={loadError} progress={progress} progressError={progressError} onSaveCycle={saveCycle} />
+        : <StudentRecordsPanel allStudents={allStudents} loading={loading} loadError={loadError} progress={progress} progressError={progressError} onReload={reload} reloading={reloading} />}
+    </div>
+  );
+}
+
+function StudentLinksPanel({ allStudents, loading, loadError, progress, progressError, onSaveCycle }) {
+  const [copiedId, setCopiedId] = useState(null);
+  const [search, setSearch] = useState("");
+  const [expanded, setExpanded] = useState({});
+  const [editingId, setEditingId] = useState(null);
+  const [editValue, setEditValue] = useState("");
+  const [saving, setSaving] = useState(false);
 
   // 대표자녀(main 또는 studentType 미설정) + 형제자매 그룹핑 (기존 학생관리 사이트와 동일 로직)
   const mainStudents = useMemo(() => {
@@ -171,21 +237,68 @@ function StudentLinksPanel() {
 
   const toggleExpand = (id) => setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
 
+  const startEdit = (s) => {
+    const c = getCycle(progress[s.id]);
+    setEditingId(s.id);
+    setEditValue(c === null ? "" : String(c));
+  };
+  const submitEdit = async (s) => {
+    const n = Number(editValue);
+    if (!/^\d+$/.test(editValue.trim()) || n < 1 || n > 99) { alert("1~99 사이의 숫자를 입력해 주세요."); return; }
+    setSaving(true);
+    try { await onSaveCycle(s, n); setEditingId(null); }
+    catch (e) { console.error(e); alert("저장하지 못했어요. 인터넷 연결과 Firestore 쓰기 권한을 확인해 주세요."); }
+    setSaving(false);
+  };
+
   const q = search.trim().toLowerCase();
   const visibleMains = q ? mainStudents.filter((s) => (s.name || "").toLowerCase().includes(q)) : mainStudents;
 
   const card = { background:"#fffdf8", border:"2px solid #cdeaff", borderRadius:14, overflow:"hidden" };
   const rowBtn = (active) => ({
-    flexShrink:0, display:"flex", alignItems:"center", gap:6, padding:"9px 14px", borderRadius:10,
+    flexShrink:0, display:"flex", alignItems:"center", gap:5, padding:"8px 11px", borderRadius:10,
     fontSize:13, fontFamily:"'Jua',sans-serif", border:"none",
     background: active ? "#e7f3e9" : "#241f5e", color: active ? "#2e6b3e" : "#fff",
   });
+  // 링크 복사(남색)와 헷갈리지 않도록 주황색 계열
+  const editBtn = { flexShrink:0, padding:"7px 10px", borderRadius:10, border:"none", fontSize:12, fontFamily:"'Jua',sans-serif", background:"#f59e0b", color:"#fff" };
+  const cancelBtn = { flexShrink:0, padding:"7px 9px", borderRadius:10, border:"none", fontSize:12, fontFamily:"'Jua',sans-serif", background:"#eee", color:"#555" };
+
+  const renderActions = (s) => {
+    const cyc = getCycle(progress[s.id]);
+    if (editingId === s.id) {
+      return (
+        <div style={{ display:"flex", alignItems:"center", gap:5, flexShrink:0 }}>
+          <input
+            type="number" inputMode="numeric" min="1" max="99" autoFocus
+            value={editValue} onChange={(e) => setEditValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") submitEdit(s); }}
+            style={{ width:54, padding:"7px 6px", borderRadius:8, border:"2px solid #f59e0b", textAlign:"center", outline:"none" }}
+          />
+          <span style={{ fontSize:13 }}>바퀴</span>
+          <button disabled={saving} onClick={() => submitEdit(s)} style={editBtn}>저장</button>
+          <button disabled={saving} onClick={() => setEditingId(null)} style={cancelBtn}>취소</button>
+        </div>
+      );
+    }
+    return (
+      <div style={{ display:"flex", alignItems:"center", gap:8, flexShrink:0 }}>
+        <button onClick={() => copyLink(s.id)} style={rowBtn(copiedId === s.id)}>
+          {copiedId === s.id ? (<><IconCheck/> 복사됨</>) : "링크 복사"}
+        </button>
+        <span style={{ fontSize:14, fontWeight:700, minWidth:34, textAlign:"center", color: cyc === null ? "#b8b2a0" : "#241f5e" }}>
+          {cyc === null ? "-" : cyc + "바퀴"}
+        </span>
+        <button onClick={() => startEdit(s)} style={editBtn}>수정</button>
+      </div>
+    );
+  };
 
   return (
     <div style={{ maxWidth:640, margin:"0 auto", padding:"20px 16px 60px" }}>
       <h1 style={{ fontFamily:"'Jua',sans-serif", fontSize:22, margin:"4px 0 2px" }}>학생 링크 관리</h1>
       <p style={{ fontSize:14, color:"#4a4494", margin:"0 0 16px" }}>
-        학생을 터치할 필요 없이, 각 학생 옆 "링크 복사"만 누르면 그 학생 전용 그림 단어장 주소가 복사돼요.
+        각 학생 옆 "링크 복사"를 누르면 그 학생 전용 그림 단어장 주소가 복사돼요. 오른쪽 바퀴 수는 "수정"으로 바로 고칠 수 있어요.
       </p>
 
       <div style={{ position:"relative", marginBottom:14 }}>
@@ -197,6 +310,8 @@ function StudentLinksPanel() {
           style={{ width:"100%", padding:"11px 14px 11px 38px", borderRadius:12, border:"2px solid #cdeaff", outline:"none", background:"#fff" }}
         />
       </div>
+
+      {progressError && <p style={{ fontSize:12, color:"#e0483e", margin:"0 0 10px" }}>{progressError}</p>}
 
       {loading ? (
         <p style={{ textAlign:"center", padding:"40px 0", color:"#9CA8B8" }}>불러오는 중...</p>
@@ -214,7 +329,7 @@ function StudentLinksPanel() {
             const grade = calcCurrentGrade(s.grade, s.joinDate);
             return (
               <div key={s.id} style={card}>
-                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, padding:14 }}>
+                <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, padding:14 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8, minWidth:0 }}>
                     {siblings.length > 0 && (
                       <button
@@ -233,9 +348,7 @@ function StudentLinksPanel() {
                       </p>
                     </div>
                   </div>
-                  <button onClick={() => copyLink(s.id)} style={rowBtn(copiedId === s.id)}>
-                    {copiedId === s.id ? (<><IconCheck/> 복사됨</>) : "링크 복사"}
-                  </button>
+                  {renderActions(s)}
                 </div>
 
                 {isOpen && siblings.length > 0 && (
@@ -243,7 +356,7 @@ function StudentLinksPanel() {
                     {siblings.map((sib) => {
                       const sibGrade = calcCurrentGrade(sib.grade, sib.joinDate);
                       return (
-                        <div key={sib.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:10, padding:"12px 14px 12px 44px", borderTop:"1px solid #eaf6ff" }}>
+                        <div key={sib.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8, padding:"12px 14px 12px 44px", borderTop:"1px solid #eaf6ff" }}>
                           <div style={{ minWidth:0 }}>
                             <p style={{ margin:0, fontSize:14, fontWeight:700, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
                               {sib.name || "(이름 없음)"}
@@ -253,9 +366,7 @@ function StudentLinksPanel() {
                               {sibGrade !== "-" ? sibGrade + " · " : ""}{sib.school || ""}
                             </p>
                           </div>
-                          <button onClick={() => copyLink(sib.id)} style={rowBtn(copiedId === sib.id)}>
-                            {copiedId === sib.id ? (<><IconCheck/> 복사됨</>) : "링크 복사"}
-                          </button>
+                          {renderActions(sib)}
                         </div>
                       );
                     })}
@@ -270,8 +381,97 @@ function StudentLinksPanel() {
   );
 }
 
+function StudentRecordsPanel({ allStudents, loading, loadError, progress, progressError, onReload, reloading }) {
+  const [search, setSearch] = useState("");
+  const [sortBy, setSortBy] = useState("name");   // name | recent
+
+  const rows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const list = allStudents
+      .filter((s) => !q || (s.name || "").toLowerCase().includes(q))
+      .map((s) => ({ s, p: progress[s.id] }));
+    const t = (r) => { try { return r.p.updatedAt.toMillis(); } catch (e) { return 0; } };
+    list.sort((a, b) =>
+      sortBy === "recent"
+        ? (t(b) - t(a)) || (a.s.name || "").localeCompare(b.s.name || "", "ko")
+        : (a.s.name || "").localeCompare(b.s.name || "", "ko"));
+    return list;
+  }, [allStudents, progress, search, sortBy]);
+
+  const entered = allStudents.filter((s) => getCycle(progress[s.id]) !== null).length;
+  const chip = (active) => ({
+    padding:"6px 12px", borderRadius:999, border:"none", fontSize:13, fontFamily:"'Jua',sans-serif",
+    background: active ? "#241f5e" : "#fff", color: active ? "#fff" : "#4a4494", boxShadow: active ? "none" : "inset 0 0 0 2px #cdeaff",
+  });
+
+  return (
+    <div style={{ maxWidth:640, margin:"0 auto", padding:"20px 16px 60px" }}>
+      <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", margin:"4px 0 2px" }}>
+        <h1 style={{ fontFamily:"'Jua',sans-serif", fontSize:22, margin:0 }}>학생 기록</h1>
+        <button onClick={onReload} disabled={reloading} style={{ padding:"7px 12px", borderRadius:10, border:"none", background:"#f59e0b", color:"#fff", fontFamily:"'Jua',sans-serif", fontSize:13 }}>
+          {reloading ? "불러오는 중..." : "새로고침"}
+        </button>
+      </div>
+      <p style={{ fontSize:14, color:"#4a4494", margin:"0 0 14px" }}>
+        바퀴 수를 입력한 학생 {entered}명 / 전체 {allStudents.length}명
+      </p>
+
+      <div style={{ position:"relative", marginBottom:10 }}>
+        <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", color:"#9CA8B8" }}><IconSearch/></span>
+        <input
+          value={search} onChange={(e) => setSearch(e.target.value)} placeholder="학생 이름 검색..."
+          style={{ width:"100%", padding:"11px 14px 11px 38px", borderRadius:12, border:"2px solid #cdeaff", outline:"none", background:"#fff" }}
+        />
+      </div>
+      <div style={{ display:"flex", gap:6, marginBottom:14 }}>
+        <button style={chip(sortBy === "name")} onClick={() => setSortBy("name")}>이름순</button>
+        <button style={chip(sortBy === "recent")} onClick={() => setSortBy("recent")}>최근 학습순</button>
+      </div>
+
+      {progressError && <p style={{ fontSize:12, color:"#e0483e", margin:"0 0 10px" }}>{progressError}</p>}
+
+      {loading ? (
+        <p style={{ textAlign:"center", padding:"40px 0", color:"#9CA8B8" }}>불러오는 중...</p>
+      ) : loadError ? (
+        <p style={{ textAlign:"center", padding:"40px 20px", color:"#e0483e", fontSize:14 }}>{loadError}</p>
+      ) : rows.length === 0 ? (
+        <p style={{ textAlign:"center", padding:"40px 0", color:"#9CA8B8" }}>학생이 없어요.</p>
+      ) : (
+        <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
+          {rows.map(({ s, p }) => {
+            const text = recordText(p);
+            const hasStudy = p && typeof p.maxIdx === "number" && p.maxIdx >= 0;
+            const total = p && p.total;
+            const pct = hasStudy && total ? Math.min(100, Math.round(((p.maxIdx + 1) / total) * 100)) : 0;
+            const when = p ? fmtDate(p.updatedAt) : "";
+            return (
+              <div key={s.id} style={{ background:"#fffdf8", border:"2px solid #cdeaff", borderRadius:14, padding:"12px 14px", opacity: text ? 1 : 0.6 }}>
+                <div style={{ display:"flex", alignItems:"baseline", justifyContent:"space-between", gap:8 }}>
+                  <span style={{ fontSize:16, fontWeight:700 }}>{s.name || "(이름 없음)"}</span>
+                  {when && <span style={{ fontSize:12, color:"#9C8F70" }}>마지막 학습 {when}</span>}
+                </div>
+                <p style={{ margin:"4px 0 0", fontSize:15, color: text ? "#241f5e" : "#9CA8B8" }}>
+                  {text || "아직 바퀴 수를 입력하지 않았어요"}
+                </p>
+                {hasStudy && total ? (
+                  <div style={{ marginTop:8 }}>
+                    <div style={{ height:6, borderRadius:999, background:"#eaf6ff", overflow:"hidden" }}>
+                      <div style={{ width:pct + "%", height:"100%", background:"#f59e0b" }} />
+                    </div>
+                    <p style={{ margin:"4px 0 0", fontSize:12, color:"#9C8F70" }}>{p.maxIdx + 1} / {total}단어 ({pct}%)</p>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(<PasswordGate><StudentLinksPanel /></PasswordGate>);
+root.render(<PasswordGate><AdminApp /></PasswordGate>);
 </script>
 </body>
 </html>
