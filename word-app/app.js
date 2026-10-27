@@ -35,19 +35,38 @@
   const welcomeLine = document.getElementById('welcome-line');
 
   // ---------- 학생 식별 (관리자 페이지에서 만들어준 링크의 ?student= 값) ----------
+  // 링크에 학생 값이 없거나, 등록되지 않은 값이면 단어장 대신 안내 화면만 보여줍니다.
   const studentId = new URLSearchParams(location.search).get('student') || null;
 
-  if (studentId && typeof db !== 'undefined') {
-    db.collection('students').doc(studentId).get()
-      .then(doc => {
-        if (doc.exists) {
-          const s = doc.data();
-          const name = s.name || '학생';
-          welcomeLine.textContent = `${name} 학생, 안녕하세요! 단어를 터치하면 읽어줘요`;
-        }
-      })
-      .catch(() => { /* 학생 정보를 못 불러와도 앱은 그대로 동작 */ });
+  function showGate(title, msg) {
+    listView.classList.add('hidden');
+    playerView.classList.add('hidden');
+    const g = document.createElement('div');
+    g.style.cssText = 'min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;text-align:center;font-family:Jua,sans-serif;';
+    g.innerHTML = '<div style="font-size:48px;margin-bottom:12px">🔒</div>'
+      + '<h2 style="margin:0 0 8px;font-size:22px"></h2>'
+      + '<p style="margin:0;color:#666;line-height:1.5"></p>';
+    g.querySelector('h2').textContent = title;
+    g.querySelector('p').textContent = msg;
+    document.body.appendChild(g);
   }
+
+  // 'ok' | 'invalid' | 'error'
+  async function verifyStudent() {
+    if (!studentId || typeof db === 'undefined') return 'invalid';
+    try {
+      const doc = await db.collection('students').doc(studentId).get();
+      if (!doc.exists) return 'invalid';
+      const name = doc.data().name || '학생';
+      welcomeLine.textContent = `${name} 학생, 안녕하세요! 단어를 터치하면 읽어줘요`;
+      return 'ok';
+    } catch (e) {
+      return 'error';
+    }
+  }
+
+  listView.classList.add('hidden');            // 확인이 끝나기 전에는 목록을 가려둡니다
+  const studentCheck = verifyStudent();        // 데이터 파일 로딩과 동시에 진행
 
   // ---------- 데이터 로드 (파일들을 동시에 요청 — 순서대로 기다리지 않음) ----------
   const [words, hotspots, motion, redAudioList] = await Promise.all([
@@ -59,6 +78,17 @@
     // 빨간 단어 중 카드 단어와 모양이 다른 것(복수형·-ing·비교급 등)의 녹음 파일 목록. 없으면 TTS로 읽어줍니다.
     fetch('red_audio.json').then(r => r.json()).catch(() => []),
   ]);
+  const checkResult = await studentCheck;
+  if (checkResult === 'invalid') {
+    showGate('선생님이 보내준 내 링크로 들어와 주세요', '주소가 잘못되었거나 일부가 지워졌어요. 받은 링크를 다시 눌러 주세요.');
+    return;
+  }
+  if (checkResult === 'error') {
+    showGate('연결을 확인해 주세요', '인터넷 연결이 불안정해요. 연결을 확인하고 링크를 다시 열어 주세요.');
+    return;
+  }
+  listView.classList.remove('hidden');
+
   const redAudio = new Set(redAudioList);
   const indexOfCode = new Map(words.map((c, i) => [c, i]));
 
