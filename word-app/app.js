@@ -79,8 +79,10 @@
   const studentCheck = verifyStudent();        // 데이터 파일 로딩과 동시에 진행
 
   // ---------- 데이터 로드 (파일들을 동시에 요청 — 순서대로 기다리지 않음) ----------
-  const [words, hotspots, motion, redAudioList] = await Promise.all([
+  const [words, wordNames, hotspots, motion, redAudioList] = await Promise.all([
     fetch('words.json').then(r => r.json()),
+    // 코드 → 실제 영어 단어(검색·진도 기록용). 이미지/음성 파일 이름은 words.json의 코드 그대로 사용합니다.
+    fetch('wordnames.json').then(r => r.json()).catch(() => ({})),
     // 터치 영역 좌표 (파란 단어 / 영영풀이 첫 줄 / 빨간 단어 / 그림). 없어도 앱은 동작합니다.
     fetch('hotspots.json').then(r => r.json()).catch(() => ({})),
     // 단어별 움직임 정보: { t:'v' 원본 애니메이션 영상 | t:'s' 효과음만, d:길이(초) }. 없으면 예전처럼 단어→영영풀이만.
@@ -100,7 +102,12 @@
   listView.classList.remove('hidden');
 
   const redAudio = new Set(redAudioList);
+  // 카드 순서를 코드순이 아니라 실제 단어의 알파벳순으로 정렬 (같은 단어는 words.json 순서 유지)
+  const sortKey = (c) => String(wordNames[c] || c).toLowerCase().replace(/-/g, '');
+  words.sort((a, b) => { const x = sortKey(a), y = sortKey(b); return x < y ? -1 : x > y ? 1 : 0; });
   const indexOfCode = new Map(words.map((c, i) => [c, i]));
+  const nameOf = (code) => wordNames[code] || code;               // 실제 단어 (없으면 코드)
+  const norm = (t) => String(t).toLowerCase().replace(/[\s\-]+/g, '');   // 소문자 + 공백/하이픈 무시
 
   // ---------- 학습 기록 (몇 바퀴 / 어디까지) ----------
   const FV = firebase.firestore.FieldValue;
@@ -130,14 +137,14 @@
     // 마지막 단어까지 갔다가 첫 단어로 돌아오면 한 바퀴 완료 (서버 값을 +1 하므로 관리자가 고친 값도 유지됨)
     if (prog.reachedEnd && idx === 0) {
       prog.cycle += 1; prog.maxIdx = 0; prog.reachedEnd = false;
-      queueSave({ cycle: FV.increment(1), maxIdx: 0, lastWord: words[0], reachedEnd: false });
+      queueSave({ cycle: FV.increment(1), maxIdx: 0, lastWord: nameOf(words[0]), reachedEnd: false });
       return;
     }
     const cur = typeof prog.maxIdx === 'number' ? prog.maxIdx : -1;
     if (idx > cur) {
       prog.maxIdx = idx;
       if (idx === LAST_IDX) prog.reachedEnd = true;
-      queueSave({ maxIdx: idx, lastWord: words[idx], reachedEnd: !!prog.reachedEnd });
+      queueSave({ maxIdx: idx, lastWord: nameOf(words[idx]), reachedEnd: !!prog.reachedEnd });
     }
   }
 
@@ -182,8 +189,8 @@
   function buildGrid(filterText) {
     gridContainer.innerHTML = '';
     alphaStrip.innerHTML = '';
-    const q = (filterText || '').trim().toUpperCase();
-    const filtered = q ? words.filter(c => c.includes(q)) : words;
+    const q = norm((filterText || '').trim());
+    const filtered = q ? words.filter(c => norm(nameOf(c)).includes(q)) : words;
 
     wordCountEl.textContent = q
       ? `검색 결과 ${filtered.length}개`
@@ -238,7 +245,7 @@
     pic.className = 'pic';
     pic.loading = 'lazy';
     pic.src = `assets/thumb/${code}.jpg`;
-    pic.alt = code;
+    pic.alt = nameOf(code);
 
     card.appendChild(pic);
     card.addEventListener('click', () => enterPlayer(idx));   // 클릭 순간에 전체화면 요청
@@ -598,7 +605,7 @@
     motionDone = !motion[code];
     progressLabel.textContent = `${idx + 1} / ${words.length}`;
     cardImage.src = `assets/img/${code}.jpg`;
-    cardImage.alt = code;
+    cardImage.alt = nameOf(code);
     renderHotspots(code);
     fitCard();
     preloadImage(words[(idx + 1) % words.length]);

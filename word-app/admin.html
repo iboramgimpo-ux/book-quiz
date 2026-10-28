@@ -120,11 +120,13 @@ function fmtDate(ts) {
   try { const d = ts.toDate(); return (d.getMonth() + 1) + "/" + d.getDate(); } catch (e) { return ""; }
 }
 function getCycle(p) { return p && typeof p.cycle === "number" ? p.cycle : null; }
+let WORD_NAMES = {};
+fetch("wordnames.json").then((r) => r.json()).then((d) => { WORD_NAMES = d; }).catch(() => {});
 function recordText(p) {
   const cyc = getCycle(p);
   if (cyc === null) return null;
   if (typeof p.maxIdx !== "number" || p.maxIdx < 0 || !p.lastWord) return cyc + "바퀴 - 아직 학습 기록 없음";
-  return cyc + "바퀴 - " + String(p.lastWord).toLowerCase() + "까지 완료";
+  return cyc + "바퀴 - " + String(WORD_NAMES[p.lastWord] || p.lastWord).toLowerCase() + "까지 완료";
 }
 
 function AdminApp() {
