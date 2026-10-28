@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
-<title>DK 1029단어 그림단어장</title>
+<title>DK 1030단어 그림단어장</title>
 
 <!-- 폰트/Firebase DNS 사전 연결 (iOS Safari 로딩 속도 개선) -->
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>
@@ -27,7 +27,10 @@
   <!-- ===== 목록 화면 ===== -->
   <div id="list-view">
     <div class="top-bar">
-      <h1>그림 단어장</h1>
+      <div class="title-row">
+        <h1>그림 단어장</h1>
+        <button id="mydk-btn" class="mydk-btn" type="button">My DK</button>
+      </div>
       <p class="sub" id="welcome-line">단어를 터치하면 읽어줘요</p>
       <div class="search-row">
         <input id="search-input" type="text" placeholder="단어 검색 (예: goat)" autocomplete="off">

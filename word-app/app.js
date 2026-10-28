@@ -80,7 +80,7 @@
 
   // ---------- 데이터 로드 (파일들을 동시에 요청 — 순서대로 기다리지 않음) ----------
   // 코드 → 실제 영어 단어 (검색·진도 기록·정렬용). 파일 이름은 words.json의 코드 그대로 사용합니다.
-  const wordNames = {"ABOV":"above","ACCI":"accident","ACRO":"acrobat","ACT0":"act","ADD0":"add","ADDR":"address","ADUL":"adult","AIRP":"aeroplane","AIRT":"airport","ALLI":"alligator","ALPH":"alphabet","AMBU":"ambulance","ANCH":"anchor","ANGR":"angry","ANIM":"animal","ANKL":"ankle","ANT0":"ant","APE0":"ape","APPL":"apple","AQUA":"aquarium","ARM0":"arm","ARMA":"armadillo","ARRO":"arrow","ARTI":"artist","ASTR":"astronaut","ATHL":"athlete","AUDI":"audience","AUTH":"author","AVAL":"avalanche","BABY":"baby","BAC1":"back","BAC2":"back","BAKE":"bake","BALA":"balance","BALL":"ball","BALN":"balloon","BANA":"banana","BAND":"band","BANG":"bandage","BANK":"bank","BANP":"bank","BARB":"barbecue","BARN":"barn","BASE":"baseball","BASK":"basket","BAT1":"bat","BAT2":"bat","BATH":"bath","BATT":"battery","BEAC":"beach","BEAD":"beak","BEAK":"bear","BEAR":"beard","BEAV":"beaver","BED0":"bed","BEE0":"bee","BEET":"beetle","BEHI":"behind","BELL":"bell","BELO":"below","BELT":"belt","BERR":"berry","BETW":"between","BICY":"bicycle","BIG0":"big","BINO":"binoculars","BIRD":"bird","BIRT":"birthday","BITE":"bite","BLAC":"black","BLAN":"blanket","BLIN":"blind","BLOO":"blood","BLOS":"blossom","BLOU":"blouse","BLOW":"blow","BLUE":"blue","BOAT":"boat","BODY":"body","BONE":"bone","BOOK":"book","BOOM":"boomerang","BOTL":"bottle","BOTM":"bottom","BOWL":"bowl","BOX0":"box","BOY0":"boy","BRAI":"brain","BRAN":"branch","BREA":"bread","BREK":"break","BRFS":"breakfast","BRID":"bride","BRIG":"bridge","BROW":"brown","BRUS":"brush","BUCK":"bucket","BUD0":"bud","BUIL":"building","BUL1":"bulb","BUL2":"bulb","BULL":"bulldozer","BURG":"burglar","BURN":"burn","BUS0":"bus","BUTE":"butter","BUTF":"butterfly","BUTN":"button","BUTT":"button","BUY0":"buy","CABB":"cabbage","CABI":"cabin","CACT":"cactus","CALC":"calculator","CALE":"calendar","CAML":"camel","CAMM":"camera","CAMP":"camp","CAN0":"can","CAND":"candle","CANO":"canoe","CAP0":"cap","CAR0":"car","CARN":"carnation","CARP":"carpenter","CARR":"carrot","CARY":"carry","CASS":"cassette","CAST":"castle","CAT0":"cat","CATC":"catch","CATE":"caterpillar","CAUL":"cauliflower","CAVE":"cave","CENT":"centipede","CERE":"cereal","CHAI":"chair","CHAM":"chameleon","CHAP":"champion","CHAR":"chart","CHAS":"chase","CHEA":"cheap","CHEC":"checkout","CHEE":"cheer","CHES":"cheese","CHET":"cheetah","CHEX":"chess","CHEZ":"chest","CHIC":"chicken","CHLD":"child","CHMN":"chimney","CHMP":"chimpanzee","CHN0":"chin","CHOC":"chocolate","CHOI":"choir","CHOO":"choose","CHOP":"chopsticks","CHUR":"church","CIRC":"circle","CITY":"city","CLAP":"clap","CLAW":"claw","CLEA":"clean","CLIF":"cliff","CLIM":"climb","CLOC":"clock","CLOT":"clothes","CLOU":"cloud","CLOW":"clown","COAT":"coat","COBW":"cobweb","COCK":"cockpit","COCO":"coconut","COCU":"cocoon","COFF":"coffee","COLD":"cold","COLO":"colour","COMP":"compact disc","COMT":"computer","COND":"conductor","CONE":"cone","CONT":"continent","COOK":"cook","CORN":"corner","COTN":"cotton","COTU":"count","COU1":"country","COU2":"countryside","COUS":"cousin","COW0":"cow","CRAB":"crab","CRAN":"crane","CRAW":"crawl","CRAY":"crayon","CRIC":"cricket","CROC":"crocodile","CROW":"crow","CROX":"crowd","CROY":"crown","CRUT":"crutch","CRY0":"cry","CUB0":"cub","CUBE":"cube","CUCU":"cucumber","CUP0":"cup","CUPB":"cupboard","CURT":"curtain","CURV":"curve","CUSH":"cushion","CUT0":"cut","DAFF":"daffodil","DAIS":"daisy","DAM0":"dam","DANC":"dance","DAND":"dandelion","DAY0":"day","DEAF":"deaf","DEER":"deer","DENT":"dentist","DESE":"desert","DESK":"desk","DESS":"dessert","DETE":"detective","DGRM":"diagram","DIA1":"diamond","DIA2":"diamond","DIAR":"diary","DICT":"dictionary","DIFF":"different","DINN":"dinner","DINO":"dinosaur","DIRT":"dirty","DISG":"disguise","DIVE":"dive","DOCT":"doctor","DOG0":"dog","DOLL":"doll","DOLP":"dolphin","DONK":"donkey","DOOR":"door","DOUB":"double","DOWN":"down","DRAG":"dragon","DRAN":"dragonfly","DRAW":"draw","DRAX":"drawer","DRE1":"dress","DRE2":"dress","DRIL":"drill","DRIN":"drink","DRIV":"drive","DRO1":"drop","DRO2":"drop","DRUM":"drum","DRY0":"dry","DUCK":"duck","DUMP":"dump truck","EAGL":"eagle","EAR0":"ear","EARH":"earth","EARQ":"earthquake","EASE":"easel","EAT0":"eat","EGG0":"egg","EIGH":"eight","ELBO":"elbow","ELEC":"electricity","ELEP":"elephant","EMPT":"empty","EMU0":"emu","ENGI":"engine","ENGR":"engineer","ENTR":"enter","ENVE":"envelope","ENVI":"environment","EQUA":"equal","EQUT":"equator","ESCA":"escalator","EXER":"exercise","EXIT":"exit","EXPE":"expensive","EXPL":"explode","EYE0":"eye","FABL":"fable","FACE":"face","FACT":"fact","FACY":"factory","FAIR":"fair","FALL":"fall","FAMI":"family","FAN0":"fan","FARM":"farm","FAST":"fast","FAT0":"fat","FEAT":"feather","FIGH":"fight","FILM":"film","FING":"finger","FINP":"fingerprint","FINS":"finish","FIRE":"fire","FIRN":"fire engine","FIRS":"first","FIRT":"first aid","FIS1":"fish","FIS2":"fish","FIVE":"five","FLAG":"flag","FLIP":"flipper","FLOA":"float","FLOO":"flood","FLOU":"flour","FLOW":"flower","FLUT":"flute","FLY1":"fly","FLY2":"fly","FOG0":"fog","FOLD":"fold","FOOD":"food","FOOT":"foot","FOP1":"football","FOP2":"American football","FORE":"forest","FORK":"fork","FOSS":"fossil","FOUN":"fountain","FOUR":"four","FOX0":"fox","FRIE":"friend","FROG":"frog","FRON":"front","FRUI":"fruit","FRYP":"frying pan","FULL":"full","FUR0":"fur","FURN":"furniture","GAME":"game","GARA":"garage","GARB":"rubbish","GARD":"garden","GATE":"gate","GEOG":"geography","GIAN":"giant","GIRA":"giraffe","GIRL":"girl","GIVE":"give","GLAS":"glass","GLES":"glasses","GLOB":"globe","GLOV":"glove","GLUE":"glue","GOAL":"goal","GOAT":"goat","GOGG":"goggles","GOLD":"gold","GOLE":"goldfish","GOLF":"golf","GOOS":"goose","GORI":"gorilla","GRAA":"grandparent","GRAE":"grape","GRAF":"grapefruit","GRAS":"grass","GRAZ":"grasshopper","GREE":"green","GROW":"grow","GUIT":"guitar","GYMN":"gymnast","HABI":"habitat","HAIR":"hair","HALF":"half","HAMM":"hammer","HAND":"hand","HANE":"handle","HANG":"hang","HANR":"hangar","HAPP":"happy","HARB":"harbour","HAT0":"hat","HAWK":"hawk","HEAD":"head","HEAL":"headlight","HEAR":"hearing aid","HEE1":"heart","HEE2":"heart","HEEA":"heavy","HEEL":"heel","HELI":"helicopter","HELM":"helmet","HELP":"help","HIBE":"hibernate","HIDE":"hide","HIGH":"high","HILL":"hill","HIP0":"hip","HIPP":"hippopotamus","HOLD":"hold","HOLE":"hole","HONE":"honey","HOOF":"hoof","HOP0":"hop","HOR1":"horn","HOR2":"horn","HORS":"horse","HOSP":"hospital","HOT0":"hot","HOTE":"hotel","HOUS":"house","HUG0":"hug","HUGE":"huge","HUND":"hundred","HURR":"hurricane","HYEN":"hyena","ICE0":"ice","ICEC":"ice cream","ICEG":"iceberg","ICIC":"icicle","IGLO":"igloo","IGUA":"iguana","IMAG":"imaginary","INJE":"injection","INJU":"injure","INSE":"insect","INSI":"inside","INST":"instrument","INVE":"invent","INVI":"invite","IRON":"iron","ISLA":"island","IVY0":"ivy","JACK":"jacket","JAGU":"jaguar","JAM0":"jam","JAR0":"jar","JAW0":"jaw","JEAN":"jeans","JELL":"jellyfish","JEWE":"jewel","JIGS":"jigsaw puzzle","JUDO":"judo","JUG0":"jug","JUGG":"juggle","JUIC":"juice","JUMP":"jump","KANG":"kangaroo","KARA":"karate","KEY0":"key","KICK":"kick","KING":"king","KISS":"kiss","KITC":"kitchen","KITE":"kite","KITT":"kitten","KNEE":"knee","KNEL":"kneel","KNIF":"knife","KNIG":"knight","KNIT":"knit","KNOC":"knock","KNOT":"knot","KOAL":"koala","LABO":"laboratory","LADD":"ladder","LADY":"ladybird","LAKE":"lake","LAMB":"lamb","LAMP":"lamp","LAND":"land","LARG":"large","LAUG":"laugh","LAWN":"lawn","LEAF":"leaf","LEFT":"left","LEG0":"leg","LEMO":"lemon","LEOP":"leopard","LETR":"letter","LETT":"lettuce","LIBR":"library","LICK":"lick","LIFE":"lifeboat","LIFT":"lift","LIH1":"light","LIH2":"light","LIHS":"lighthouse","LING":"lightning","LION":"lion","LIP0":"lip","LIQU":"liquid","LITR":"litter","LITT":"little","LIZA":"lizard","LOBS":"lobster","LOCK":"lock","LOG0":"log","LONG":"long","LOOK":"look","LOSE":"lose","LOVE":"love","LOW0":"low","LUGG":"luggage","LUNC":"lunch","LUNG":"lung","MACH":"machine","MAGA":"magazine","MAGI":"magic","MAGN":"magnet","MAGS":"magnifying glass","MAMM":"mammal","MAN0":"man","MAP0":"map","MARK":"market","MASK":"mask","MATC":"match","MATH":"mathematics","MEAL":"meal","MEAS":"measure","MEAT":"meat","MECH":"mechanic","MEDA":"medal","MEDI":"medicine","MEET":"meet","MELT":"melt","META":"metal","MICR":"microphone","MICS":"microscope","MICW":"microwave oven","MIDN":"midnight","MILK":"milk","MINE":"mine","MINR":"mineral","MIRR":"mirror","MIX0":"mix","MONE":"money","MONK":"monkey","MONS":"monster","MONT":"month","MOON":"moon","MOSQ":"mosque","MOST":"mosquito","MOTH":"moth","MOTO":"motorcycle","MOUN":"mountain","MOUS":"mouse","MOUT":"mouth","MOUZ":"moustache","MOVE":"move","MUD0":"mud","MUSC":"muscle","MUSE":"museum","MUSH":"mushroom","MUSI":"music","MUSN":"musician","NAIL":"nail","NARR":"narrow","NATR":"nature","NECK":"neck","NEED":"needle","NEST":"nest","NET0":"net","NEW0":"new","NEWS":"newspaper","NEWT":"newt","NIGH":"night","NINE":"nine","NOIS":"noise","NOON":"midday","NOSE":"nose","NUMB":"number","NURS":"nurse","NUT1":"nut","NUT2":"nut","OAR0":"oar","OCEA":"ocean","OCTO":"octopus","OFFI":"office","OIL0":"oil","OLD0":"old","ONE0":"one","ONIO":"onion","OPEN":"open","OPER":"opera","OPPO":"opposite","OPTO":"optician","ORA1":"orange","ORA2":"orange","ORAN":"orangutan","ORCH":"orchard","ORCS":"orchestra","ORGA":"organ","OSTR":"ostrich","OTTE":"otter","OUTS":"outside","OVAL":"oval","OVEN":"oven","OVER":"over","OWL0":"owl","OYST":"oyster","PACK":"package","PAGE":"page","PAI1":"paint","PAI2":"paint","PAIR":"pair","PALA":"palace","PALM":"palm","PALT":"palm tree","PAND":"panda","PANT":"panther","PANZ":"trousers","PAPE":"paper","PARA":"parachute","PARE":"parent","PARK":"park","PARQ":"park","PARR":"parrot","PART":"party","PASS":"passenger","PATH":"path","PATI":"patient","PAW0":"paw","PAY0":"pay","PEA0":"pea","PEAC":"peach","PEAK":"peacock","PEAN":"peanut","PEAR":"pear","PEAV":"pearl","PEBB":"pebble","PEE1":"peel","PEE2":"peel","PELI":"pelican","PEN0":"pen","PENC":"pencil","PENG":"penguin","PEOP":"people","PEPP":"pepper","PET0":"pet","PETA":"petal","PHOG":"photograph","PHOT":"photographer","PIAN":"piano","PICN":"picnic","PICT":"picture","PIE0":"pie","PIG0":"pig","PIGE":"pigeon","PILE":"pile","PILL":"pillow","PILO":"pilot","PIN0":"pin","PINE":"pineapple","PINK":"pink","PIPE":"pipe","PIRA":"pirate","PLAE":"planet","PLAN":"plant","PLAS":"plastic","PLAT":"plate","PLH1":"play","PLH2":"play","PLUM":"plum","PLUR":"plumber","POCK":"pocket","POEM":"poem","POIN":"point","POLA":"polar bear","POLC":"police officer","POLI":"polish","POLL":"pollution","POND":"pond","PONY":"pony","POPP":"poppy","PORC":"porcupine","POST":"post office","POTA":"potato","POUR":"pour","PRES":"present","PRIC":"price","PRIN":"prince","PRIZ":"prize","PROB":"problem","PROP":"propeller","PUDD":"puddle","PULL":"pull","PUMP":"pump","PUNC":"puncture","PUPA":"pupa","PUPP":"puppet","PUPY":"puppy","PURP":"purple","PUSH":"push","PUZZ":"puzzle","PYRA":"pyramid","PYTH":"python","QUAT":"quarter","QUEE":"queen","QUES":"question","QUIC":"quick","QUIE":"quiet","QUIL":"quilt","QUIZ":"quiz","RABB":"rabbit","RACC":"raccoon","RACE":"race","RACR":"racing car","RADA":"radar","RADI":"radio","RAFT":"raft","RAIL":"railway","RAIN":"rain","RANF":"rainbow","RANW":"rainforest","RAT0":"rat","REAC":"reach","READ":"read","RECR":"recorder","RECT":"rectangle","RECY":"recycle","RED0":"red","REFR":"refrigerator","REPA":"repair","REPT":"reptile","RESC":"rescue","REST":"restaurant","RHIN":"rhinoceros","RHYM":"rhyme","RIBB":"ribbon","RICE":"rice","RIDD":"riddle","RIDE":"ride","RIGH":"right","RIN1":"ring","RIN2":"ring","RIVE":"river","ROAD":"road","ROBO":"robot","ROC1":"rock","ROC2":"rock","ROCT":"rocket","ROLL":"roll","ROOF":"roof","ROOM":"room","ROOT":"root","ROPE":"rope","ROSE":"rose","ROUN":"round","ROW1":"row","ROW2":"row","RUG0":"rug","RULE":"ruler","RUN0":"run","RUNW":"runway","SAD0":"sad","SADD":"saddle","SAI1":"sail","SAI2":"sail","SALA":"salad","SALT":"salt","SAME":"same","SAND":"sand","SANW":"sandwich","SATE":"satellite","SAUC":"saucepan","SAW0":"saw","SCA1":"scale","SCA2":"scale","SCAR":"scarf","SCHO":"school","SCIE":"scientist","SCIS":"scissor","SCOR":"scorpion","SCRA":"scratch","SCRE":"screw","SCRU":"scrub","SEA0":"sea","SEAG":"seagull","SEAH":"sea horse","SEAL":"seal","SEAS":"season","SEAT":"seat belt","SEAW":"seaweed","SEE0":"see","SEED":"seed","SEES":"seesaw","SELL":"sell","SENT":"sentence","SEVE":"seven","SEW0":"sew","SHAD":"shadow","SHAK":"shake","SHAP":"shape","SHAR":"share","SHAX":"shark","SHAZ":"sharp","SHEE":"sheep","SHEF":"shelf","SHEL":"shell","SHIP":"ship","SHIR":"shirt","SHOE":"shoe","SHOO":"short","SHOR":"shoulder","SHOU":"shout","SHOV":"shovel","SHOW":"shower","SHRI":"shrimp","SHUT":"shut","SIDE":"side","SING":"sing","SINK":"sink","SIT0":"sit","SIX0":"six","SKAT":"skate","SKBD":"skateboard","SKEL":"skeleton","SKI0":"ski","SKIN":"skin","SKIP":"skip","SKIR":"skirt","SKY0":"sky","SKYS":"skyscraper","SLED":"sledge","SLEE":"sleep","SLIC":"slice","SLID":"slide","SLOW":"slow","SMAL":"small","SMIL":"smile","SNAI":"snail","SNAK":"snake","SNOO":"snow","SNOW":"snowman","SOAP":"soap","SOCC":"soccer","SOCK":"sock","SOLI":"solid","SPAC":"space","SPAF":"spacecraft","SPAR":"sparrow","SPEL":"spell","SPID":"spider","SPIL":"spill","SPOO":"spoon","SPOR":"sport","SQAR":"square","SQAS":"squash","SQEZ":"squeeze","SQRL":"squirrel","STAB":"stable","STAM":"stamp","STAN":"stand","STAR":"star","STAS":"starfish","STAT":"start","STAX":"state","STEE":"steering wheel","STEM":"stem","STON":"stone","STOP":"stopwatch","STOR":"shop","STOY":"story","STRA":"strawberry","STRE":"stream","STRF":"street","STRI":"string","STRP":"stripe","SUBM":"submarine","SUBT":"subtract","SUGA":"sugar","SUM0":"sum","SUN0":"sun","SUNG":"sunglasses","SUPE":"supermarket","SWAN":"swan","SWIM":"swim","SWMM":"swimming pool","SWNG":"swing","SYNA":"synagogue","TABL":"table","TADP":"tadpole","TAIL":"tail","TALL":"tall","TAMB":"tambourine","TAXI":"taxi","TEA0":"tea","TEAC":"teacher","TEAM":"team","TEAS":"tear","TEAT":"tear","TELE":"telephone","TELS":"telescope","TELV":"television","TEMP":"temple","TEN0":"ten","TENN":"tennis","TENT":"tent","THEA":"theatre","THER":"thermometer","THIG":"thigh","THIN":"thin","THOR":"thorn","THRA":"thread","THRE":"three","THRO":"throat","THUM":"thumb","TICK":"ticket","TIE1":"tie","TIE2":"tie","TIGE":"tiger","TILE":"tile","TIME":"time","TIPT":"tiptoe","TIRE":"tired","TOAD":"toad","TOBO":"toboggan","TOE0":"toe","TOIL":"toilet","TOMA":"tomato","TONG":"tongue","TOOL":"tool","TOOT":"tooth","TOOX":"toothbrush","TOP0":"top","TORN":"tornado","TOUC":"toucan","TOWE":"towel","TOWN":"town","TOY0":"toy","TRAC":"tractor","TRAF":"traffic","TRAI":"train","TRAN":"transparent","TRAY":"tray","TREA":"treasure","TREE":"tree","TRIA":"triangle","TRIC":"trick","TRIL":"tricycle","TROP":"trophy","TRUC":"truck","TRUM":"trumpet","TRUN":"trunk","TSHI":"T-shirt","TUGB":"tugboat","TULI":"tulip","TUNN":"tunnel","TURK":"turkey","TURT":"turtle","TUSK":"tusk","TWIG":"twig","TWIN":"twin","TWO0":"two","UMBR":"umbrella","UNDE":"under","UNDR":"underwear","UNDS":"undress","UNIC":"unicorn","UNIV":"university","UP00":"up","VACU":"vacuum cleaner","VALL":"valley","VEGE":"vegetable","VEHI":"vehicle","VET0":"vet","VIDE":"videotape","VILL":"village","VINE":"vine","VIOL":"violin","VOLC":"volcano","VULT":"vulture","WAGO":"wagon","WAIT":"waiter","WALK":"walk","WALL":"wallaby","WALT":"wallet","WALU":"walrus","WASH":"wash","WAT1":"watch","WAT2":"watch","WATE":"water","WATF":"water lily","WATL":"waterfall","WATM":"watermelon","WAV1":"wave","WAV2":"wave","WEAR":"wear","WEAT":"weather","WEDD":"wedding","WEEK":"week","WEIG":"weigh","WET0":"wet","WHAL":"whale","WHEA":"wheat","WHEE":"wheel","WHLB":"wheelbarrow","WHLC":"wheelchair","WHSK":"whisker","WHSP":"whisper","WHST":"whistle","WHTE":"white","WIDE":"wide","WIND":"wind","WINE":"windmill","WINF":"window","WING":"wing","WIRE":"wire","WITC":"witch","WIZA":"wizard","WOLF":"wolf","WOMA":"woman","WOOD":"wood","WOOL":"wool","WORL":"world","WORM":"worm","WRIN":"wrinkle","WRIS":"wrist","WRIT":"write","XRAY":"x-ray","XYLO":"xylophone","YACH":"yacht","YAWN":"yawn","YEAR":"year","YELL":"yellow","YOGU":"yoghurt","YOLK":"yolk","YOUN":"young","ZEBR":"zebra","ZERO":"zero","ZIPP":"zipper","ZOO0":"zoo"};
+  const wordNames = {"ABOV":"above","ACCI":"accident","ACRO":"acrobat","ACT0":"act","ADD0":"add","ADDR":"address","ADUL":"adult","AIRP":"aeroplane","AIRT":"airport","ALLI":"alligator","ALPH":"alphabet","AMBU":"ambulance","ANCH":"anchor","ANGR":"angry","ANIM":"animal","ANKL":"ankle","ANT0":"ant","APE0":"ape","APPL":"apple","AQUA":"aquarium","ARM0":"arm","ARMA":"armadillo","ARRO":"arrow","ARTI":"artist","ASTR":"astronaut","ATHL":"athlete","AUDI":"audience","AUTH":"author","AVAL":"avalanche","BABY":"baby","BAC1":"back","BAC2":"back","BAKE":"bake","BALA":"balance","BALL":"ball","BALN":"balloon","BANA":"banana","BAND":"band","BANG":"bandage","BANK":"bank","BANP":"bank","BARB":"barbecue","BARN":"barn","BASE":"baseball","BASK":"basket","BAT1":"bat","BAT2":"bat","BATH":"bath","BATT":"battery","BEAC":"beach","BEAD":"beard","BEAK":"beak","BEAR":"bear","BEAV":"beaver","BED0":"bed","BEE0":"bee","BEET":"beetle","BEHI":"behind","BELL":"bell","BELO":"below","BELT":"belt","BERR":"berry","BETW":"between","BICY":"bicycle","BIG0":"big","BINO":"binoculars","BIRD":"bird","BIRT":"birthday","BITE":"bite","BLAC":"black","BLAN":"blanket","BLIN":"blind","BLOO":"blood","BLOS":"blossom","BLOU":"blouse","BLOW":"blow","BLUE":"blue","BOAT":"boat","BODY":"body","BONE":"bone","BOOK":"book","BOOM":"boomerang","BOTL":"bottle","BOTM":"bottom","BOWL":"bowl","BOX0":"box","BOY0":"boy","BRAI":"brain","BRAN":"branch","BREA":"bread","BREK":"break","BRFS":"breakfast","BRID":"bride","BRIG":"bridge","BROW":"brown","BRUS":"brush","BUCK":"bucket","BUD0":"bud","BUIL":"building","BUL1":"bulb","BUL2":"bulb","BULL":"bulldozer","BURG":"burglar","BURN":"burn","BUS0":"bus","BUTE":"butter","BUTF":"butterfly","BUTN":"button","BUTT":"button","BUY0":"buy","CABB":"cabbage","CABI":"cabin","CACT":"cactus","CALC":"calculator","CALE":"calendar","CAML":"camel","CAMM":"camera","CAMP":"camp","CAN0":"can","CAND":"candle","CANO":"canoe","CAP0":"cap","CAR0":"car","CARN":"carnation","CARP":"carpenter","CARR":"carrot","CARY":"carry","CASS":"cassette","CAST":"castle","CAT0":"cat","CATC":"catch","CATE":"caterpillar","CAUL":"cauliflower","CAVE":"cave","CENT":"centipede","CERE":"cereal","CHAI":"chair","CHAM":"chameleon","CHAP":"champion","CHAR":"chart","CHAS":"chase","CHEA":"cheap","CHEC":"check out","CHEE":"cheer","CHES":"cheese","CHET":"cheetah","CHEX":"chess","CHEZ":"chest","CHIC":"chicken","CHLD":"child","CHMN":"chimney","CHMP":"chimpanzee","CHN0":"chin","CHOC":"chocolate","CHOI":"choir","CHOO":"choose","CHOP":"chopsticks","CHUR":"church","CIRC":"circle","CITY":"city","CLAP":"clap","CLAW":"claw","CLEA":"clean","CLIF":"cliff","CLIM":"climb","CLOC":"clock","CLOT":"clothes","CLOU":"cloud","CLOW":"clown","COAT":"coat","COBW":"cobweb","COCK":"cockpit","COCO":"coconut","COCU":"cocoon","COFF":"coffee","COLD":"cold","COLO":"colour","COMP":"compact disc","COMT":"computer","COND":"conductor","CONE":"cone","CONT":"continent","COOK":"cook","CORN":"corner","COTN":"cotton","COTU":"count","COU1":"country","COU2":"countryside","COUS":"cousin","COW0":"cow","CRAB":"crab","CRAN":"crane","CRAW":"crawl","CRAY":"crayon","CRIC":"cricket","CROC":"crocodile","CROW":"crow","CROX":"crowd","CROY":"crown","CRUT":"crutch","CRY0":"cry","CUB0":"cub","CUBE":"cube","CUCU":"cucumber","CUP0":"cup","CUPB":"cupboard","CURT":"curtain","CURV":"curve","CUSH":"cushion","CUT0":"cut","DAFF":"daffodil","DAIS":"daisy","DAM0":"dam","DANC":"dance","DAND":"dandelion","DAY0":"day","DEAF":"deaf","DEER":"deer","DENT":"dentist","DESE":"desert","DESK":"desk","DESS":"dessert","DETE":"detective","DGRM":"diagram","DIA1":"diamond","DIA2":"diamond","DIAR":"diary","DICT":"dictionary","DIFF":"different","DINN":"dinner","DINO":"dinosaur","DIRT":"dirty","DISG":"disguise","DIVE":"dive","DOCT":"doctor","DOG0":"dog","DOLL":"doll","DOLP":"dolphin","DONK":"donkey","DOOR":"door","DOUB":"double","DOWN":"down","DRAG":"dragon","DRAN":"dragonfly","DRAW":"draw","DRAX":"drawer","DRE1":"dress","DRE2":"dress","DRIL":"drill","DRIN":"drink","DRIV":"drive","DRO1":"drop","DRO2":"drop","DRUM":"drum","DRY0":"dry","DUCK":"duck","DUMP":"dump truck","EAGL":"eagle","EAR0":"ear","EARH":"earth","EARQ":"earthquake","EASE":"easel","EAT0":"eat","EGG0":"egg","EIGH":"eight","ELBO":"elbow","ELEC":"electricity","ELEP":"elephant","EMPT":"empty","EMU0":"emu","ENGI":"engine","ENGR":"engineer","ENTR":"enter","ENVE":"envelope","ENVI":"environment","EQUA":"equal","EQUT":"equator","ESCA":"escalator","EXER":"exercise","EXIT":"exit","EXPE":"expensive","EXPL":"explode","EYE0":"eye","FABL":"fable","FACE":"face","FACT":"fact","FACY":"factory","FAIR":"fair","FALL":"fall","FAMI":"family","FAN0":"fan","FARM":"farm","FAST":"fast","FAT0":"fat","FEAT":"feather","FIGH":"fight","FILM":"film","FING":"finger","FINP":"fingerprint","FINS":"finish","FIRE":"fire","FIRN":"fire engine","FIRS":"first","FIRT":"first aid","FIS1":"fish","FIS2":"fish","FIVE":"five","FLAG":"flag","FLIP":"flipper","FLOA":"float","FLOO":"flood","FLOU":"flour","FLOW":"flower","FLUT":"flute","FLY1":"fly","FLY2":"fly","FOG0":"fog","FOLD":"fold","FOOD":"food","FOOT":"foot","FOP1":"football","FOP2":"american football","FORE":"forest","FORK":"fork","FOSS":"fossil","FOUN":"fountain","FOUR":"four","FOX0":"fox","FRIE":"friend","FROG":"frog","FRON":"front","FRUI":"fruit","FRYP":"frying pan","FULL":"full","FUR0":"fur","FURN":"furniture","GAME":"game","GARA":"garage","GARB":"rubbish","GARD":"garden","GATE":"gate","GEOG":"geography","GIAN":"giant","GIRA":"giraffe","GIRL":"girl","GIVE":"give","GLAS":"glass","GLES":"glasses","GLOB":"globe","GLOV":"glove","GLUE":"glue","GOAL":"goal","GOAT":"goat","GOGG":"goggles","GOLD":"gold","GOLE":"goldfish","GOLF":"golf","GOOS":"goose","GORI":"gorilla","GRAA":"grandparent","GRAE":"grape","GRAF":"grapefruit","GRAS":"grass","GRAZ":"grasshopper","GREE":"green","GROW":"grow","GUIT":"guitar","GYMN":"gymnast","HABI":"habitat","HAIR":"hair","HALF":"half","HAMM":"hammer","HAND":"hand","HANE":"handle","HANG":"hang","HANR":"hangar","HAPP":"happy","HARB":"harbour","HAT0":"hat","HAWK":"hawk","HEAD":"head","HEAL":"headlight","HEAR":"hearing aid","HEE1":"heart","HEE2":"heart","HEEA":"heavy","HEEL":"heel","HELI":"helicopter","HELM":"helmet","HELP":"help","HIBE":"hibernate","HIDE":"hide","HIGH":"high","HILL":"hill","HIP0":"hip","HIPP":"hippopotamus","HOLD":"hold","HOLE":"hole","HONE":"honey","HOOF":"hoof","HOP0":"hop","HOR1":"horn","HOR2":"horn","HORS":"horse","HOSP":"hospital","HOT0":"hot","HOTE":"hotel","HOUS":"house","HUG0":"hug","HUGE":"huge","HUND":"hundred","HURR":"hurricane","HYEN":"hyena","ICE0":"ice","ICEC":"ice cream","ICEG":"iceberg","ICIC":"icicle","IGLO":"igloo","IGUA":"iguana","IMAG":"imaginary","INJE":"injection","INJU":"injure","INSE":"insect","INSI":"inside","INST":"instrument","INVE":"invent","INVI":"invite","IRON":"iron","ISLA":"island","IVY0":"ivy","JACK":"jacket","JAGU":"jaguar","JAM0":"jam","JAR0":"jar","JAW0":"jaw","JEAN":"jeans","JELL":"jellyfish","JEWE":"jewel","JIGS":"jigsaw puzzle","JUDO":"judo","JUG0":"jug","JUGG":"juggle","JUIC":"juice","JUMP":"jump","KANG":"kangaroo","KARA":"karate","KEY0":"key","KICK":"kick","KING":"king","KISS":"kiss","KITC":"kitchen","KITE":"kite","KITT":"kitten","KNEE":"knee","KNEL":"kneel","KNIF":"knife","KNIG":"knight","KNIT":"knit","KNOC":"knock","KNOT":"knot","KOAL":"koala","LABO":"laboratory","LADD":"ladder","LADY":"ladybird","LAKE":"lake","LAMB":"lamb","LAMP":"lamp","LAND":"land","LARG":"large","LAUG":"laugh","LAWN":"lawn","LEAF":"leaf","LEFT":"left","LEG0":"leg","LEMO":"lemon","LEOP":"leopard","LETR":"letter","LETT":"lettuce","LIBR":"library","LICK":"lick","LIFE":"lifeboat","LIFT":"lift","LIH1":"light","LIH2":"light","LIHS":"lighthouse","LING":"lightning","LION":"lion","LIP0":"lip","LIQU":"liquid","LITR":"litter","LITT":"little","LIZA":"lizard","LOBS":"lobster","LOCK":"lock","LOG0":"log","LONG":"long","LOOK":"look","LOSE":"lose","LOVE":"love","LOW0":"low","LUGG":"luggage","LUNC":"lunch","LUNG":"lung","MACH":"machine","MAGA":"magazine","MAGI":"magic","MAGN":"magnet","MAGS":"magnifying glass","MAMM":"mammal","MAN0":"man","MAP0":"map","MARK":"market","MASK":"mask","MATC":"match","MATH":"mathematics","MEAL":"meal","MEAS":"measure","MEAT":"meat","MECH":"mechanic","MEDA":"medal","MEDI":"medicine","MEET":"meet","MELT":"melt","META":"metal","MICR":"microphone","MICS":"microscope","MICW":"microwave oven","MIDN":"midnight","MILK":"milk","MINE":"mine","MINR":"mineral","MIRR":"mirror","MIX0":"mix","MONE":"money","MONK":"monkey","MONS":"monster","MONT":"month","MOON":"moon","MOSQ":"mosque","MOST":"mosquito","MOTH":"moth","MOTO":"motorcycle","MOUN":"mountain","MOUS":"mouse","MOUT":"mouth","MOUZ":"moustache","MOVE":"move","MUD0":"mud","MUSC":"muscle","MUSE":"museum","MUSH":"mushroom","MUSI":"music","MUSN":"musician","NAIL":"nail","NARR":"narrow","NATR":"nature","NECK":"neck","NEED":"needle","NEST":"nest","NET0":"net","NEW0":"new","NEWS":"newspaper","NEWT":"newt","NIGH":"night","NINE":"nine","NOIS":"noise","NOON":"midday","NOSE":"nose","NUMB":"number","NURS":"nurse","NUT1":"nut","NUT2":"nut","OAR0":"oar","OCEA":"ocean","OCTO":"octopus","OFFI":"office","OIL0":"oil","OLD0":"old","ONE0":"one","ONIO":"onion","OPEN":"open","OPER":"opera","OPPO":"opposite","OPTO":"optician","ORA1":"orange","ORA2":"orange","ORAN":"orang-utan","ORCH":"orchard","ORCS":"orchestra","ORGA":"organ","OSTR":"ostrich","OTTE":"otter","OUTS":"outside","OVAL":"oval","OVEN":"oven","OVER":"over","OWL0":"owl","OYST":"oyster","PACK":"package","PAGE":"page","PAI1":"paint","PAI2":"paint","PAIR":"pair","PALA":"palace","PALM":"palm","PALT":"palm tree","PAND":"panda","PANT":"panther","PANZ":"trousers","PAPE":"paper","PARA":"parachute","PARE":"parent","PARK":"park","PARQ":"park","PARR":"parrot","PART":"party","PASS":"passenger","PATH":"path","PATI":"patient","PAW0":"paw","PAY0":"pay","PEA0":"pea","PEAC":"peach","PEAK":"peacock","PEAN":"peanut","PEAR":"pear","PEAV":"pearl","PEBB":"pebble","PEE1":"peel","PEE2":"peel","PELI":"pelican","PEN0":"pen","PENC":"pencil","PENG":"penguin","PEOP":"people","PEPP":"pepper","PET0":"pet","PETA":"petal","PHOG":"photograph","PHOT":"photographer","PIAN":"piano","PICN":"picnic","PICT":"picture","PIE0":"pie","PIG0":"pig","PIGE":"pigeon","PILE":"pile","PILL":"pillow","PILO":"pilot","PIN0":"pin","PINE":"pineapple","PINK":"pink","PIPE":"pipe","PIRA":"pirate","PLAE":"planet","PLAN":"plant","PLAS":"plastic","PLAT":"plate","PLH1":"play","PLH2":"play","PLUM":"plum","PLUR":"plumber","POCK":"pocket","POEM":"poem","POIN":"point","POLA":"polar bear","POLC":"police officer","POLI":"polish","POLL":"pollution","POND":"pond","PONY":"pony","POPP":"poppy","PORC":"porcupine","POST":"post office","POTA":"potato","POUR":"pour","PRES":"present","PRIC":"price","PRIN":"prince","PRIZ":"prize","PROB":"problem","PROP":"propeller","PUDD":"puddle","PULL":"pull","PUMP":"pump","PUNC":"puncture","PUPA":"pupa","PUPP":"puppet","PUPY":"puppy","PURP":"purple","PUSH":"push","PUZZ":"puzzle","PYRA":"pyramid","PYTH":"python","QUAT":"quarter","QUEE":"queen","QUES":"question","QUIC":"quick","QUIE":"quiet","QUIL":"quilt","QUIZ":"quiz","RABB":"rabbit","RACC":"raccoon","RACE":"race","RACR":"racing car","RADA":"radar","RADI":"radio","RAFT":"raft","RAIL":"railway","RAIN":"rain","RANF":"rainforest","RANW":"rainbow","RAT0":"rat","REAC":"reach","READ":"read","RECR":"recorder","RECT":"rectangle","RECY":"recycle","RED0":"red","REFR":"refrigerator","REPA":"repair","REPT":"reptile","RESC":"rescue","REST":"restaurant","RHIN":"rhinoceros","RHYM":"rhyme","RIBB":"ribbon","RICE":"rice","RIDD":"riddle","RIDE":"ride","RIGH":"right","RIN1":"ring","RIN2":"ring","RIVE":"river","ROAD":"road","ROBO":"robot","ROC1":"rock","ROC2":"rock","ROCT":"rocket","ROLL":"roll","ROOF":"roof","ROOM":"room","ROOT":"root","ROPE":"rope","ROSE":"rose","ROUN":"round","ROW1":"row","ROW2":"row","RUG0":"rug","RULE":"ruler","RUN0":"run","RUNW":"runway","SAD0":"sad","SADD":"saddle","SAI1":"sail","SAI2":"sail","SALA":"salad","SALT":"salt","SAME":"same","SAND":"sand","SANW":"sandwich","SATE":"satellite","SAUC":"saucepan","SAW0":"saw","SCA1":"scale","SCA2":"scale","SCAR":"scarf","SCHO":"school","SCIE":"scientist","SCIS":"scissors","SCOR":"scorpion","SCRA":"scratch","SCRE":"screw","SCRU":"scrub","SEA0":"sea","SEAG":"seagull","SEAH":"sea horse","SEAL":"seal","SEAS":"season","SEAT":"seat belt","SEAW":"seaweed","SEE0":"see","SEED":"seed","SEES":"seesaw","SELL":"sell","SENT":"sentence","SEVE":"seven","SEW0":"sew","SHAD":"shadow","SHAK":"shake","SHAP":"shape","SHAR":"share","SHAX":"shark","SHAZ":"sharp","SHEE":"sheep","SHEF":"shelf","SHEL":"shell","SHIP":"ship","SHIR":"shirt","SHOE":"shoe","SHOO":"short","SHOR":"shoulder","SHOU":"shout","SHOV":"shovel","SHOW":"shower","SHRI":"shrimp","SHUT":"shut","SIDE":"side","SING":"sing","SINK":"sink","SIT0":"sit","SIX0":"six","SKAT":"skate","SKBD":"skateboard","SKEL":"skeleton","SKI0":"ski","SKIN":"skin","SKIP":"skip","SKIR":"skirt","SKY0":"sky","SKYS":"skyscraper","SLED":"sledge","SLEE":"sleep","SLIC":"slice","SLID":"slide","SLOW":"slow","SMAL":"small","SMIL":"smile","SNAI":"snail","SNAK":"snake","SNOO":"snow","SNOW":"snowman","SOAP":"soap","SOCC":"soccer","SOCK":"sock","SOLI":"solid","SPAC":"space","SPAF":"spacecraft","SPAR":"sparrow","SPEL":"spell","SPID":"spider","SPIL":"spill","SPOO":"spoon","SPOR":"sport","SQAR":"square","SQAS":"squash","SQEZ":"squeeze","SQRL":"squirrel","STAB":"stable","STAM":"stamp","STAN":"stand","STAR":"star","STAS":"starfish","STAT":"start","STAX":"state","STEE":"steering wheel","STEM":"stem","STON":"stone","STOP":"stopwatch","STOR":"shop","STOY":"story","STRA":"strawberry","STRE":"stream","STRF":"street","STRI":"string","STRP":"stripe","SUBM":"submarine","SUBT":"subtract","SUGA":"sugar","SUM0":"sum","SUN0":"sun","SUNG":"sunglasses","SUPE":"supermarket","SWAN":"swan","SWIM":"swim","SWMM":"swimming pool","SWNG":"swing","SYNA":"synagogue","TABL":"table","TADP":"tadpole","TAIL":"tail","TALL":"tall","TAMB":"tambourine","TAXI":"taxi","TEA0":"tea","TEAC":"teacher","TEAM":"team","TEAS":"tear","TEAT":"tear","TELE":"telephone","TELS":"telescope","TELV":"television","TEMP":"temple","TEN0":"ten","TENN":"tennis","TENT":"tent","THEA":"theatre","THER":"thermometer","THIG":"thigh","THIN":"thin","THOR":"thorn","THRA":"thread","THRE":"three","THRO":"throat","THUM":"thumb","TICK":"ticket","TIE1":"tie","TIE2":"tie","TIGE":"tiger","TILE":"tile","TIME":"time","TIPT":"tiptoe","TIRE":"tired","TOAD":"toad","TOBO":"toboggan","TOE0":"toe","TOIL":"toilet","TOMA":"tomato","TONG":"tongue","TOOL":"tool","TOOT":"tooth","TOOX":"toothbrush","TOP0":"top","TORN":"tornado","TOUC":"toucan","TOWE":"towel","TOWN":"town","TOY0":"toy","TRAC":"tractor","TRAF":"traffic","TRAI":"train","TRAN":"transparent","TRAY":"tray","TREA":"treasure","TREE":"tree","TRIA":"triangle","TRIC":"trick","TRIL":"tricycle","TROP":"trophy","TRUC":"truck","TRUM":"trumpet","TRUN":"trunk","TSHI":"t-shirt","TUGB":"tugboat","TULI":"tulip","TUNN":"tunnel","TURK":"turkey","TURT":"turtle","TUSK":"tusk","TWIG":"twig","TWIN":"twin","TWO0":"two","UMBR":"umbrella","UNDE":"under","UNDR":"underwear","UNDS":"undress","UNIC":"unicorn","UNIV":"university","UP00":"up","VACU":"vacuum cleaner","VALL":"valley","VEGE":"vegetable","VEHI":"vehicle","VET0":"vet","VIDE":"video tape","VILL":"village","VINE":"vine","VIOL":"violin","VOLC":"volcano","VULT":"vulture","WAGO":"wagon","WAIT":"waiter","WALK":"walk","WALL":"wallaby","WALT":"wallet","WALU":"walrus","WASH":"wash","WAT1":"watch","WAT2":"watch","WATE":"water","WATF":"waterfall","WATL":"water lily","WATM":"watermelon","WAV1":"wave","WAV2":"wave","WEAR":"wear","WEAT":"weather","WEDD":"wedding","WEEK":"week","WEIG":"weigh","WET0":"wet","WHAL":"whale","WHEA":"wheat","WHEE":"wheel","WHLB":"wheelbarrow","WHLC":"wheelchair","WHSK":"whiskers","WHSP":"whisper","WHST":"whistle","WHTE":"white","WIDE":"wide","WIND":"wind","WINE":"windmill","WINF":"window","WING":"wing","WIRE":"wire","WITC":"witch","WIZA":"wizard","WOLF":"wolf","WOMA":"woman","WOOD":"wood","WOOL":"wool","WORL":"world","WORM":"worm","WRIN":"wrinkle","WRIS":"wrist","WRIT":"write","XRAY":"x-ray","XYLO":"xylophone","YACH":"yacht","YAWN":"yawn","YEAR":"year","YELL":"yellow","YOGU":"yoghurt","YOLK":"yolk","YOUN":"young","ZEBR":"zebra","ZERO":"zero","ZIPP":"zipper","ZOO0":"zoo"};
   const [words, hotspots, motion, redAudioList] = await Promise.all([
     fetch('words.json').then(r => r.json()),
     // 터치 영역 좌표 (파란 단어 / 영영풀이 첫 줄 / 빨간 단어 / 그림). 없어도 앱은 동작합니다.
@@ -150,8 +150,9 @@
 
   // 처음 한 번만: 현재 몇 바퀴인지 학생이 직접 입력
   function askCycleIfNeeded() {
-    if (!progReadOk) return;                                   // 기록을 못 읽었으면 묻지 않음 (기존 기록 보호)
-    if (prog && typeof prog.cycle === 'number') return;
+    if (!progReadOk) return Promise.resolve();                 // 기록을 못 읽었으면 묻지 않음 (기존 기록 보호)
+    if (prog && typeof prog.cycle === 'number') return Promise.resolve();
+    let cycleDone; const cyclePromise = new Promise(r => { cycleDone = r; });
     const ov = document.createElement('div');
     ov.style.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(36,31,94,.88);display:flex;align-items:center;justify-content:center;padding:20px;';
     ov.innerHTML = '<div style="background:#fffdf8;border-radius:20px;padding:28px 22px;max-width:340px;width:100%;text-align:center;font-family:Jua,sans-serif;color:#241f5e">'
@@ -175,6 +176,7 @@
           { cycle: n, name: studentName, total: words.length, cycleSetAt: FV.serverTimestamp() }, { merge: true });
         prog = { cycle: n, maxIdx: -1, reachedEnd: false };
         ov.remove();
+        cycleDone();
       } catch (e) {
         ok.disabled = false;
         err.textContent = '저장하지 못했어요. 인터넷을 확인하고 다시 눌러 주세요.';
@@ -182,8 +184,8 @@
     }
     ok.addEventListener('click', submit);
     input.addEventListener('keydown', (e) => { if (e.key === 'Enter') submit(); });
+    return cyclePromise;
   }
-  askCycleIfNeeded();
 
   // ---------- 목록 화면 그리기 ----------
   function buildGrid(filterText) {
@@ -376,6 +378,7 @@
     playMp3(audioD, `assets/audio/${code}_d.mp3`, () => {
       if (my !== token) return;
       defDone = true;
+      markLearned(code);          // 영영풀이를 끝까지 들었으면 (단어·그림 순서와 상관없이) 오늘 학습한 단어로 기록
       afterPlay();
     }, '👆 나팔 그림을 터치하면 읽어줘요');
   }
@@ -453,6 +456,7 @@
   }
 
   function complete() {
+    markLearned(words[currentIndex]);             // 오늘 학습한 단어로 기록
     if (autoMode) {
       setStatus('잠시 후 다음 단어로...');
       const my = token;
@@ -666,5 +670,339 @@
 
   backBtn.addEventListener('click', () => exitPlayer(false));
   window.addEventListener('popstate', () => { if (inPlayer) exitPlayer(true); });
+
+
+  // ================= 오늘의 학습 목표 · My DK · 퀴즈 =================
+  const myDkBtn = document.getElementById('mydk-btn');
+  const GOALS = [10, 20, 30, 40, 50];
+  const QUIZ_N = 5;
+  const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+  const localKey = 'dk_daily_' + (studentId || '');
+  const daily = { goal: 0, date: todayStr(), codes: [], celebrated: false };
+
+  (function loadDaily() {
+    let loc = null;
+    try { loc = JSON.parse(localStorage.getItem(localKey) || 'null'); } catch (e) {}
+    const t = todayStr(), p = prog || {};
+    daily.goal = GOALS.includes(p.dailyGoal) ? p.dailyGoal : (loc && GOALS.includes(loc.goal) ? loc.goal : 0);
+    const set = new Set();
+    if (p.todayDate === t && Array.isArray(p.todayCodes)) p.todayCodes.forEach(c => set.add(c));
+    if (loc && loc.date === t && Array.isArray(loc.codes)) loc.codes.forEach(c => set.add(c));
+    daily.codes = [...set].filter(c => indexOfCode.has(c));
+    daily.celebrated = p.celebratedDate === t || !!(loc && loc.date === t && loc.celebrated);
+  })();
+
+  function saveDaily(extra) {
+    queueSave(Object.assign({
+      dailyGoal: daily.goal, todayDate: daily.date, todayCodes: daily.codes.slice(),
+      celebratedDate: daily.celebrated ? daily.date : '',
+    }, extra || {}));
+    try { localStorage.setItem(localKey, JSON.stringify({ goal: daily.goal, date: daily.date, codes: daily.codes, celebrated: daily.celebrated })); } catch (e) {}
+  }
+  function rollDay() {
+    const t = todayStr();
+    if (daily.date !== t) { daily.date = t; daily.codes = []; daily.celebrated = false; }
+  }
+  function updateMyDkBtn() {
+    rollDay();
+    myDkBtn.innerHTML = '<span class="mydk-t">My DK</span>'
+      + (daily.goal ? '<span class="mydk-c">' + Math.min(daily.codes.length, daily.goal) + '/' + daily.goal + '</span>' : '');
+  }
+  updateMyDkBtn();
+
+  // 카드 하나를 끝까지 학습하면(단어→영영풀이까지) 오늘 학습한 단어로 기록
+  function markLearned(code) {
+    rollDay();
+    if (!daily.codes.includes(code)) { daily.codes.push(code); saveDaily(); }
+    updateMyDkBtn();
+    if (daily.goal && !daily.celebrated && daily.codes.length >= daily.goal) {
+      daily.celebrated = true; saveDaily();
+      showDoneModal();
+    }
+  }
+
+  // ----- 공통 팝업 틀 -----
+  function makeOverlay() {
+    const ov = document.createElement('div');
+    ov.className = 'dk-ov';
+    document.body.appendChild(ov);
+    return ov;
+  }
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function goalChips(current, onPick) {
+    const wrap = el('div', 'dk-chips');
+    GOALS.forEach(g => {
+      const b = el('button', 'dk-chip' + (g === current ? ' on' : ''), g + '개');
+      b.type = 'button';
+      b.addEventListener('click', () => {
+        wrap.querySelectorAll('.dk-chip').forEach(x => x.classList.remove('on'));
+        b.classList.add('on');
+        onPick(g);
+      });
+      wrap.appendChild(b);
+    });
+    return wrap;
+  }
+
+  // 처음 한 번: 하루 목표 고르기 (고를 때까지 닫을 수 없음)
+  function askGoalIfNeeded() {
+    if (daily.goal) return;
+    const ov = makeOverlay();
+    const box = el('div', 'dk-box');
+    box.appendChild(el('p', 'dk-title', '하루에 몇 단어씩 학습할 계획이에요?'));
+    box.appendChild(el('p', 'dk-sub', '나중에 오른쪽 위 My DK에서 바꿀 수 있어요'));
+    let sel = 0;
+    const ok = el('button', 'dk-btn', '확인');
+    ok.disabled = true;
+    box.appendChild(goalChips(0, g => { sel = g; ok.disabled = false; }));
+    ok.addEventListener('click', () => {
+      if (!sel) return;
+      daily.goal = sel; saveDaily(); updateMyDkBtn(); ov.remove();
+    });
+    box.appendChild(ok);
+    ov.appendChild(box);
+  }
+
+  // My DK 창: 목표 바꾸기 + 오늘 진행 + (목표 달성 시) 퀴즈
+  function openMyDk() {
+    rollDay();
+    const ov = makeOverlay();
+    const box = el('div', 'dk-box');
+    const close = el('button', 'dk-x', '✕');
+    close.addEventListener('click', () => ov.remove());
+    box.appendChild(close);
+    box.appendChild(el('p', 'dk-title', 'My DK'));
+    const prg = el('p', 'dk-sub');
+    const bar = el('div', 'dk-bar'); const fill = el('i'); bar.appendChild(fill);
+    const quizBtn = el('button', 'dk-btn', '퀴즈 풀러 가기');
+    function refresh() {
+      const n = daily.codes.length, g = daily.goal;
+      prg.textContent = `오늘 학습한 단어 ${n}개 / 목표 ${g}개`;
+      fill.style.width = Math.min(100, g ? n / g * 100 : 0) + '%';
+      quizBtn.classList.toggle('hidden', !(g && n >= g));
+    }
+    box.appendChild(prg); box.appendChild(bar);
+    box.appendChild(el('p', 'dk-sub', '하루 학습 목표'));
+    box.appendChild(goalChips(daily.goal, g => { daily.goal = g; saveDaily(); updateMyDkBtn(); refresh(); }));
+    quizBtn.addEventListener('click', () => { ov.remove(); startQuiz(); });
+    box.appendChild(quizBtn);
+    refresh();
+    ov.appendChild(box);
+  }
+  myDkBtn.addEventListener('click', openMyDk);
+
+  // 목표를 채웠을 때 나오는 안내
+  function showDoneModal() {
+    stopAllAudio(); autoMode = false; updateAutoBtn(); clearTimeout(advanceTimer); advanceTimer = null;
+    const ov = makeOverlay();
+    const box = el('div', 'dk-box');
+    box.appendChild(el('div', 'dk-emoji', '🎉'));
+    box.appendChild(el('p', 'dk-title', '오늘 학습 완료!'));
+    box.appendChild(el('p', 'dk-sub', `오늘 ${daily.codes.length}개 단어를 학습했어요`));
+    const go = el('button', 'dk-btn', '퀴즈 풀러 가기');
+    go.addEventListener('click', () => { ov.remove(); startQuiz(); });
+    const later = el('button', 'dk-btn ghost', '나중에 할게요');
+    later.addEventListener('click', () => ov.remove());
+    box.appendChild(go); box.appendChild(later);
+    ov.appendChild(box);
+  }
+
+  // ----- 퀴즈 문제 만들기 -----
+  const shuffle = (a) => { const r = a.slice(); for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; } return r; };
+  const pick = (a) => a[Math.floor(Math.random() * a.length)];
+  const HOMO = [['right', 'write'], ['sea', 'see'], ['read', 'red'], ['flour', 'flower'], ['meet', 'meat'], ['pair', 'pear'],
+    ['night', 'knight'], ['hair', 'hare'], ['deer', 'dear'], ['tail', 'tale'], ['bee', 'be'], ['rose', 'rows'], ['sew', 'so'],
+    ['one', 'won'], ['eye', 'i'], ['tea', 'tee'], ['hole', 'whole'], ['wood', 'would'], ['whale', 'wail'], ['wait', 'weight']];
+  const sameSound = (a, b) => { a = a.toLowerCase(); b = b.toLowerCase(); return HOMO.some(g => g.includes(a) && g.includes(b)); };
+  const LET = 'abcdefghijklmnopqrstuvwxyz'.split('');
+
+  function spellQ(code) {
+    const w = nameOf(code);
+    if (!/^[a-z]{3,}$/i.test(w)) return null;
+    const lw = w.toLowerCase();
+    const len = lw.length <= 4 ? 1 : (Math.random() < 0.5 ? 1 : 2);
+    const start = 1 + Math.floor(Math.random() * (lw.length - len));    // 첫 글자는 남겨둠
+    const ans = lw.substr(start, len);
+    const isV = (c) => 'aeiou'.includes(c);
+    const similar = (c) => pick((isV(c) ? 'aeiou' : 'bcdfghjklmnpqrstvwxyz').split('').filter(x => x !== c));
+    const opts = new Set([ans]);
+    for (let g = 0; opts.size < 4 && g < 80; g++) {
+      let d;
+      if (len === 1) d = Math.random() < 0.7 ? similar(ans) : pick(LET);
+      else {
+        const r = Math.random();
+        if (r < 0.3 && ans[0] !== ans[1]) d = ans[1] + ans[0];
+        else if (r < 0.65) d = similar(ans[0]) + ans[1];
+        else d = ans[0] + similar(ans[1]);
+      }
+      opts.add(d);
+    }
+    return { type: 'spell', code, word: lw, start, len, ans, opts: shuffle([...opts]) };
+  }
+
+  function listenQ(code) {
+    const w = nameOf(code);
+    const all = [...new Set(words.map(nameOf))].filter(n => n.toLowerCase() !== w.toLowerCase() && !sameSound(n, w));
+    const near = shuffle(all.filter(n => Math.abs(n.length - w.length) <= 2));
+    const ds = [];
+    const sameFirst = near.find(n => n[0].toLowerCase() === w[0].toLowerCase());
+    if (sameFirst) ds.push(sameFirst);
+    for (const n of near.concat(shuffle(all))) { if (ds.length >= 3) break; if (!ds.includes(n)) ds.push(n); }
+    return { type: 'listen', code, ans: w, opts: shuffle([w, ...ds]) };
+  }
+
+  let redPool = null;
+  function redQ(code) {
+    const h = hotspots[code];
+    if (!h || !h.r || !h.r.length) return null;
+    if (!redPool) redPool = [...new Set(Object.values(hotspots).flatMap(v => (v.r || []).map(e => e[0])))];
+    const ent = pick(h.r), text = ent[0], lt = text.toLowerCase();
+    const boxes = h.r.filter(e => e[0].toLowerCase() === lt).map(e => [e[1], e[2], e[3], e[4]]);
+    const own = shuffle(h.r.map(e => e[0]).filter(t => t.toLowerCase() !== lt));
+    const ds = own.slice(0, 1);
+    const far = shuffle(redPool.filter(t => t.toLowerCase() !== lt && Math.abs(t.length - text.length) <= 3));
+    for (const t of far) { if (ds.length >= 3) break; if (!ds.some(x => x.toLowerCase() === t.toLowerCase())) ds.push(t); }
+    return { type: 'red', code, ans: text, boxes, opts: shuffle([text, ...ds]) };
+  }
+
+  function buildQuiz() {
+    const pool = shuffle(daily.codes.slice());
+    const qs = [], used = {};
+    for (let i = 0; i < QUIZ_N; i++) {
+      const code = pool[i % pool.length];
+      let q = null;
+      for (const t of shuffle(['spell', 'listen', 'red'])) {
+        if ((used[code] || []).includes(t)) continue;
+        q = t === 'spell' ? spellQ(code) : t === 'listen' ? listenQ(code) : redQ(code);
+        if (q) { (used[code] = used[code] || []).push(t); break; }
+      }
+      qs.push(q || listenQ(code));
+    }
+    return qs;
+  }
+
+  // ----- 퀴즈 화면 -----
+  function startQuiz() {
+    rollDay();
+    if (!daily.codes.length) return;
+    stopAllAudio(); autoMode = false; updateAutoBtn(); clearTimeout(advanceTimer); advanceTimer = null;
+    const qa = new Audio();
+    const playQ = (src) => { try { qa.pause(); qa.src = src; qa.currentTime = 0; const p = qa.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} };
+    const ov = makeOverlay(); ov.classList.add('quiz');
+    const qs = buildQuiz();
+    let qi = 0, score = 0;
+    const closeQuiz = () => { try { qa.pause(); } catch (e) {} ov.remove(); };
+
+    function speaker(src, big) {
+      const b = el('button', 'qz-spk' + (big ? ' big' : ''), '🔊');
+      b.type = 'button'; b.setAttribute('aria-label', '다시 듣기');
+      b.addEventListener('click', () => playQ(src));
+      return b;
+    }
+
+    function render() {
+      ov.innerHTML = '';
+      const q = qs[qi];
+      const box = el('div', 'qz');
+      const head = el('div', 'qz-head');
+      head.appendChild(el('span', 'qz-num', `퀴즈 ${qi + 1} / ${qs.length}`));
+      const x = el('button', 'dk-x qz-x', '✕'); x.addEventListener('click', closeQuiz);
+      head.appendChild(x);
+      box.appendChild(head);
+
+      const msg = el('p', 'qz-msg');
+      const next = el('button', 'dk-btn hidden', qi === qs.length - 1 ? '결과 보기' : '다음 ▶');
+      next.addEventListener('click', () => { qi++; qi < qs.length ? render() : finish(); });
+      let locked = false;
+
+      function onPick(btn, val, ok, reveal) {
+        if (locked) return; locked = true;
+        optBtns.forEach(b => { b.disabled = true; if (b.dataset.v === q.ans) b.classList.add('ok'); });
+        if (ok) { score++; msg.textContent = '정답이에요! 👏'; msg.className = 'qz-msg good'; }
+        else { btn.classList.add('no'); msg.textContent = `아쉬워요! 정답은 "${q.ans}"`; msg.className = 'qz-msg bad'; }
+        if (reveal) reveal();
+        next.classList.remove('hidden');
+      }
+
+      const optBtns = [];
+      const opts = el('div', 'qz-opts ' + (q.type === 'spell' ? 'row' : 'grid'));
+      q.opts.forEach(v => {
+        const b = el('button', 'qz-opt', v);
+        b.type = 'button'; b.dataset.v = v;
+        b.addEventListener('click', () => onPick(b, v, v === q.ans, q.type === 'spell' ? fillBlank : null));
+        optBtns.push(b); opts.appendChild(b);
+      });
+
+      let fillBlank = null;
+      if (q.type === 'spell') {
+        box.appendChild(el('p', 'qz-q', '빈칸에 들어갈 철자를 골라요'));
+        const img = el('img', 'qz-thumb'); img.src = `assets/thumb/${q.code}.jpg`; img.alt = ''; img.draggable = false;
+        box.appendChild(img);
+        const wd = el('div', 'qz-word');
+        const slot = el('span', 'qz-blank', '');
+        slot.style.minWidth = (q.len * 0.8 + 0.4) + 'em';
+        for (let i = 0; i < q.word.length; i++) {
+          if (i === q.start) { wd.appendChild(slot); i += q.len - 1; }
+          else wd.appendChild(el('span', 'qz-l', q.word[i]));
+        }
+        fillBlank = () => { slot.textContent = q.ans; slot.classList.add('filled'); };
+        box.appendChild(wd);
+        box.appendChild(speaker(`assets/audio/${q.code}_w.mp3`, false));
+        setTimeout(() => playQ(`assets/audio/${q.code}_w.mp3`), 250);
+      } else if (q.type === 'listen') {
+        box.appendChild(el('p', 'qz-q', '소리를 듣고 알맞은 단어를 골라요'));
+        box.appendChild(speaker(`assets/audio/${q.code}_w.mp3`, true));
+        setTimeout(() => playQ(`assets/audio/${q.code}_w.mp3`), 250);
+      } else {
+        box.appendChild(el('p', 'qz-q', '영영풀이를 듣고, 가려진 빨간 단어를 골라요'));
+        const card = el('div', 'qz-card');
+        const img = el('img'); img.src = `assets/img/${q.code}.jpg`; img.alt = ''; img.draggable = false;
+        card.appendChild(img);
+        q.boxes.forEach(([x0, y0, w0, h0]) => {
+          const m = el('div', 'qz-mask');
+          const px = 3, py = 4;
+          m.style.left = ((x0 - px) / CARD_W * 100) + '%';
+          m.style.top = ((y0 - py) / CARD_H * 100) + '%';
+          m.style.width = ((w0 + px * 2) / CARD_W * 100) + '%';
+          m.style.height = ((h0 + py * 2) / CARD_H * 100) + '%';
+          m.textContent = '?';
+          card.appendChild(m);
+        });
+        box.appendChild(card);
+        box.appendChild(speaker(`assets/audio/${q.code}_d.mp3`, false));
+        fillBlank = null;
+        const revealMasks = () => card.querySelectorAll('.qz-mask').forEach(m => m.remove());
+        optBtns.forEach(b => b.addEventListener('click', revealMasks));
+        setTimeout(() => playQ(`assets/audio/${q.code}_d.mp3`), 250);
+      }
+      box.appendChild(opts);
+      box.appendChild(msg);
+      box.appendChild(next);
+      ov.appendChild(box);
+    }
+
+    function finish() {
+      try { qa.pause(); } catch (e) {}
+      saveDaily({ quizScore: score, quizTotal: qs.length, quizDate: todayStr() });   // 가장 최근 결과만 저장
+      ov.innerHTML = '';
+      const box = el('div', 'qz res');
+      box.appendChild(el('div', 'dk-emoji', score >= 4 ? '🏆' : score >= 2 ? '👍' : '💪'));
+      box.appendChild(el('p', 'dk-title', `${qs.length}문제 중 ${score}개 맞혔어요!`));
+      const again = el('button', 'dk-btn', '다시 풀기');
+      again.addEventListener('click', () => { ov.remove(); startQuiz(); });
+      const done = el('button', 'dk-btn ghost', '닫기');
+      done.addEventListener('click', closeQuiz);
+      box.appendChild(again); box.appendChild(done);
+      ov.appendChild(box);
+    }
+    render();
+  }
+
+  askCycleIfNeeded().then(askGoalIfNeeded);
 
 })();
