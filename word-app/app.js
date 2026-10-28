@@ -203,7 +203,7 @@
     const frag = document.createDocumentFragment();
 
     filtered.forEach((code) => {
-      const letter = code[0];
+      const letter = (nameOf(code)[0] || code[0]).toUpperCase();   // 코드가 아니라 실제 단어의 첫 글자로 묶음
       if (letter !== lastLetter) {
         lastLetter = letter;
         const h = document.createElement('div');
