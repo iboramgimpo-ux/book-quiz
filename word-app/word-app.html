@@ -15,7 +15,7 @@
 <link rel="dns-prefetch" href="https://www.gstatic.com">
 <link rel="dns-prefetch" href="https://firestore.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@400;700&display=swap">
-<link rel="stylesheet" href="style.css?v=3">
+<link rel="stylesheet" href="style.css?v=4">
 
 <!-- Firebase는 학생 환영 메시지에만 쓰여서 화면 렌더링을 막지 않도록 defer -->
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -46,6 +46,7 @@
     <div class="player-top">
       <button class="back-btn" id="back-btn">← 목록</button>
       <div class="progress" id="progress-label"></div>
+      <div class="goal-pill hidden" id="goal-pill"></div>
       <button class="auto-btn" id="auto-btn">▶ 자동재생</button>
       <div class="status-pill" id="status-pill">단어 읽는 중...</div>
     </div>
@@ -73,6 +74,6 @@
   <audio id="audio-r" preload="auto"></audio>
   <audio id="audio-s" preload="auto"></audio>
 
-  <script defer src="app.js?v=3"></script>
+  <script defer src="app.js?v=4"></script>
 </body>
 </html>

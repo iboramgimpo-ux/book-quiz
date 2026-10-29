@@ -640,6 +640,7 @@
     } else {
       clearTimeout(advanceTimer); advanceTimer = null;
       if (wordDone && defDone) setStatus('다 읽었어요! ▶ 다음을 눌러요');
+      if (daily.pending) showDoneModal();
     }
   });
 
@@ -662,6 +663,7 @@
     inPlayer = false;
     stopAllAudio();
     hidePopup();
+    if (daily.pending) setTimeout(showDoneModal, 150);
     playerView.classList.add('hidden');
     listView.classList.remove('hidden');
     leaveFs();
@@ -674,11 +676,12 @@
 
   // ================= 오늘의 학습 목표 · My DK · 퀴즈 =================
   const myDkBtn = document.getElementById('mydk-btn');
+  const goalPill = document.getElementById('goal-pill');
   const GOALS = [10, 20, 30, 40, 50];
   const QUIZ_N = 5;
   const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   const localKey = 'dk_daily_' + (studentId || '');
-  const daily = { goal: 0, date: todayStr(), codes: [], celebrated: false };
+  const daily = { goal: 0, date: todayStr(), codes: [], celebrated: false, pending: false };
 
   (function loadDaily() {
     let loc = null;
@@ -707,6 +710,14 @@
     rollDay();
     myDkBtn.innerHTML = '<span class="mydk-t">My DK</span>'
       + (daily.goal ? '<span class="mydk-c">' + Math.min(daily.codes.length, daily.goal) + '/' + daily.goal + '</span>' : '');
+    // 단어 학습 화면 상단의 오늘 학습 개수 표시 (보기만 할 뿐, 자동재생에는 영향 없음)
+    if (!daily.goal) goalPill.classList.add('hidden');
+    else {
+      const done = daily.codes.length >= daily.goal;
+      goalPill.classList.remove('hidden');
+      goalPill.classList.toggle('done', done);
+      goalPill.textContent = '오늘 ' + Math.min(daily.codes.length, daily.goal) + '/' + daily.goal + (done ? ' ✓' : '');
+    }
   }
   updateMyDkBtn();
 
@@ -717,7 +728,8 @@
     updateMyDkBtn();
     if (daily.goal && !daily.celebrated && daily.codes.length >= daily.goal) {
       daily.celebrated = true; saveDaily();
-      showDoneModal();
+      // 자동재생 중에는 끊지 않고 계속 재생 → 자동재생을 끄거나 목록으로 나갈 때 안내를 띄움
+      if (inPlayer && autoMode) daily.pending = true; else showDoneModal();
     }
   }
 
@@ -768,44 +780,107 @@
     ov.appendChild(box);
   }
 
-  // My DK 창: 목표 바꾸기 + 오늘 진행 + (목표 달성 시) 퀴즈
+  // 퀴즈 게임용 묶음 (글자 구간). 마지막에 전체 랜덤 추가
+  const GAME_RANGES = [['A', 'B'], ['C', 'C'], ['D', 'F'], ['G', 'K'], ['L', 'O'], ['P', 'R'], ['S', 'S'], ['T', 'Z']];
+  function buildGameGroups() {
+    const first = (c) => (nameOf(c)[0] || '?').toUpperCase();
+    const groups = GAME_RANGES.map(([a, b]) => ({
+      label: a === b ? a : a + '~' + b,
+      codes: words.filter(c => { const L = first(c); return L >= a && L <= b; }),
+    }));
+    groups.push({ label: '전체 랜덤', codes: words.slice() });
+    return groups;
+  }
+  const gameGroups = buildGameGroups();
+
+  // My DK 창: 사이클(수정 불가) · 하루 학습 단어(수정) · 오늘 진행 · Game
   function openMyDk() {
     rollDay();
     const ov = makeOverlay();
-    const box = el('div', 'dk-box');
-    const close = el('button', 'dk-x', '✕');
-    close.addEventListener('click', () => ov.remove());
-    box.appendChild(close);
-    box.appendChild(el('p', 'dk-title', 'My DK'));
-    const prg = el('p', 'dk-sub');
-    const bar = el('div', 'dk-bar'); const fill = el('i'); bar.appendChild(fill);
-    const quizBtn = el('button', 'dk-btn', '퀴즈 풀러 가기');
-    function refresh() {
-      const n = daily.codes.length, g = daily.goal;
-      prg.textContent = `오늘 학습한 단어 ${n}개 / 목표 ${g}개`;
-      fill.style.width = Math.min(100, g ? n / g * 100 : 0) + '%';
-      quizBtn.classList.toggle('hidden', !(g && n >= g));
-    }
-    box.appendChild(prg); box.appendChild(bar);
-    box.appendChild(el('p', 'dk-sub', '하루 학습 목표'));
-    box.appendChild(goalChips(daily.goal, g => { daily.goal = g; saveDaily(); updateMyDkBtn(); refresh(); }));
-    quizBtn.addEventListener('click', () => { ov.remove(); startQuiz(); });
-    box.appendChild(quizBtn);
-    refresh();
+    const box = el('div', 'dk-box dk-left');
     ov.appendChild(box);
+    let editing = false;
+
+    function render() {
+      rollDay();
+      box.innerHTML = '';
+      const close = el('button', 'dk-x', '✕');
+      close.addEventListener('click', () => ov.remove());
+      box.appendChild(close);
+
+      // 1) My DK Cycle
+      const r1 = el('div', 'dk-row');
+      r1.appendChild(el('span', 'dk-label', 'My DK Cycle'));
+      r1.appendChild(el('span', 'dk-value', (prog && typeof prog.cycle === 'number' ? prog.cycle : '-') + ' cycles'));
+      box.appendChild(r1);
+      box.appendChild(el('p', 'dk-small', '수정을 원하면 관리자에게 문의하세요'));
+
+      // 2) 하루 학습 단어
+      const r2 = el('div', 'dk-row');
+      r2.appendChild(el('span', 'dk-label', '하루 학습 단어 :'));
+      if (!editing) {
+        r2.appendChild(el('span', 'dk-value', daily.goal + '단어'));
+        const eb = el('button', 'dk-mini', '수정');
+        eb.addEventListener('click', () => { editing = true; render(); });
+        r2.appendChild(eb);
+        box.appendChild(r2);
+      } else {
+        box.appendChild(r2);
+        const er = el('div', 'dk-row dk-edit');
+        const sel = el('select', 'dk-select');
+        GOALS.forEach(g => { const o = el('option', null, g + '단어'); o.value = g; if (g === daily.goal) o.selected = true; sel.appendChild(o); });
+        const okb = el('button', 'dk-mini on', '확인');
+        okb.addEventListener('click', () => {
+          daily.goal = Number(sel.value); saveDaily(); updateMyDkBtn(); editing = false; render();
+        });
+        const cb = el('button', 'dk-mini', '취소');
+        cb.addEventListener('click', () => { editing = false; render(); });
+        er.appendChild(sel); er.appendChild(okb); er.appendChild(cb);
+        box.appendChild(er);
+      }
+
+      // 오늘 진행 + (목표 달성 시) 오늘 퀴즈
+      const n = daily.codes.length, g = daily.goal;
+      box.appendChild(el('p', 'dk-sub', `오늘 학습한 단어 ${n}개 / 목표 ${g}개`));
+      const bar = el('div', 'dk-bar'); const fill = el('i'); bar.appendChild(fill);
+      fill.style.width = Math.min(100, g ? n / g * 100 : 0) + '%';
+      box.appendChild(bar);
+      if (g && n >= g) {
+        const qb = el('button', 'dk-btn', '오늘 퀴즈 풀러 가기');
+        qb.addEventListener('click', () => { ov.remove(); startQuiz(daily.codes.slice(), true); });
+        box.appendChild(qb);
+      }
+
+      // 3) Game
+      box.appendChild(el('div', 'dk-hr'));
+      box.appendChild(el('p', 'dk-label', 'Game'));
+      const gr = el('div', 'dk-row dk-edit');
+      const gs = el('select', 'dk-select');
+      gameGroups.forEach((gp, i) => { const o = el('option', null, `${gp.label}  (${gp.codes.length}단어)`); o.value = i; gs.appendChild(o); });
+      gs.value = String(gameSel);
+      gs.addEventListener('change', () => { gameSel = Number(gs.value); });
+      const gb = el('button', 'dk-mini on', '게임 시작');
+      gb.addEventListener('click', () => { ov.remove(); startQuiz(gameGroups[Number(gs.value)].codes.slice(), false); });
+      gr.appendChild(gs); gr.appendChild(gb);
+      box.appendChild(gr);
+    }
+    render();
   }
+  let gameSel = 0;
   myDkBtn.addEventListener('click', openMyDk);
+  goalPill.addEventListener('click', () => { if (daily.goal && daily.codes.length >= daily.goal) showDoneModal(); });
 
   // 목표를 채웠을 때 나오는 안내
   function showDoneModal() {
-    stopAllAudio(); autoMode = false; updateAutoBtn(); clearTimeout(advanceTimer); advanceTimer = null;
+    daily.pending = false;
+    stopAllAudio();
     const ov = makeOverlay();
     const box = el('div', 'dk-box');
     box.appendChild(el('div', 'dk-emoji', '🎉'));
     box.appendChild(el('p', 'dk-title', '오늘 학습 완료!'));
     box.appendChild(el('p', 'dk-sub', `오늘 ${daily.codes.length}개 단어를 학습했어요`));
     const go = el('button', 'dk-btn', '퀴즈 풀러 가기');
-    go.addEventListener('click', () => { ov.remove(); startQuiz(); });
+    go.addEventListener('click', () => { ov.remove(); startQuiz(daily.codes.slice(), true); });
     const later = el('button', 'dk-btn ghost', '나중에 할게요');
     later.addEventListener('click', () => ov.remove());
     box.appendChild(go); box.appendChild(later);
@@ -870,8 +945,8 @@
     return { type: 'red', code, ans: text, boxes, opts: shuffle([text, ...ds]) };
   }
 
-  function buildQuiz() {
-    const pool = shuffle(daily.codes.slice());
+  function buildQuiz(poolCodes) {
+    const pool = shuffle(poolCodes.slice());
     const qs = [], used = {};
     for (let i = 0; i < QUIZ_N; i++) {
       const code = pool[i % pool.length];
@@ -887,14 +962,13 @@
   }
 
   // ----- 퀴즈 화면 -----
-  function startQuiz() {
-    rollDay();
-    if (!daily.codes.length) return;
+  function startQuiz(pool, saveResult) {
+    if (!pool || !pool.length) return;
     stopAllAudio(); autoMode = false; updateAutoBtn(); clearTimeout(advanceTimer); advanceTimer = null;
     const qa = new Audio();
     const playQ = (src) => { try { qa.pause(); qa.src = src; qa.currentTime = 0; const p = qa.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} };
     const ov = makeOverlay(); ov.classList.add('quiz');
-    const qs = buildQuiz();
+    const qs = buildQuiz(pool);
     let qi = 0, score = 0;
     const closeQuiz = () => { try { qa.pause(); } catch (e) {} ov.remove(); };
 
@@ -988,13 +1062,13 @@
 
     function finish() {
       try { qa.pause(); } catch (e) {}
-      saveDaily({ quizScore: score, quizTotal: qs.length, quizDate: todayStr() });   // 가장 최근 결과만 저장
+      if (saveResult) saveDaily({ quizScore: score, quizTotal: qs.length, quizDate: todayStr() });   // 오늘 학습 퀴즈의 가장 최근 결과만 관리자에게 저장 (Game은 저장 안 함)
       ov.innerHTML = '';
       const box = el('div', 'qz res');
       box.appendChild(el('div', 'dk-emoji', score >= 4 ? '🏆' : score >= 2 ? '👍' : '💪'));
       box.appendChild(el('p', 'dk-title', `${qs.length}문제 중 ${score}개 맞혔어요!`));
       const again = el('button', 'dk-btn', '다시 풀기');
-      again.addEventListener('click', () => { ov.remove(); startQuiz(); });
+      again.addEventListener('click', () => { ov.remove(); startQuiz(pool, saveResult); });
       const done = el('button', 'dk-btn ghost', '닫기');
       done.addEventListener('click', closeQuiz);
       box.appendChild(again); box.appendChild(done);

@@ -166,8 +166,9 @@ body {
 }
 .back-btn { order: 1; }
 .progress { order: 2; margin-left: auto; }
-.auto-btn { order: 3; }
-.status-pill { order: 4; flex: 1 1 100%; }
+.goal-pill { order: 3; }
+.auto-btn { order: 4; }
+.status-pill { order: 5; flex: 1 1 100%; }
 
 .back-btn {
   border: none;
@@ -356,8 +357,9 @@ body {
   }
   .player-top { grid-column: 1 / -1; grid-row: 1; padding: calc(6px + env(safe-area-inset-top, 0px)) 12px 4px; flex-wrap: nowrap; }
   .progress { margin-left: 0; order: 2; }
-  .status-pill { order: 3; flex: 1 1 auto; min-width: 0; padding: 6px 12px; font-size: 14px; }
-  .auto-btn { order: 4; white-space: nowrap; }
+  .goal-pill { order: 3; }
+  .status-pill { order: 4; flex: 1 1 auto; min-width: 0; padding: 6px 12px; font-size: 14px; }
+  .auto-btn { order: 5; white-space: nowrap; }
   .card-stage { grid-column: 2; grid-row: 2; padding: 4px; }
   .player-nav { display: contents; }
   #prev-btn, #next-btn {
@@ -464,3 +466,31 @@ body {
 .qz-msg.good { color: #1c6b3b; }
 .qz-msg.bad { color: var(--coral-deep); }
 .qz.res { max-width: 400px; padding: 28px 20px; }
+
+/* 학습 화면 상단: 오늘 학습 개수 (보라색) */
+.goal-pill {
+  font-family: 'Jua', sans-serif; font-size: 14px; color: #fff; background: #7b4fd8;
+  padding: 6px 12px; border-radius: 999px; white-space: nowrap; flex: 0 0 auto;
+}
+.goal-pill.done { background: #2e9e5b; }
+
+/* My DK 창 */
+.dk-left { text-align: left; max-width: 420px; }
+.dk-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
+.dk-label { font-size: 18px; }
+.dk-value { font-size: 18px; color: var(--coral-deep); margin-left: auto; }
+.dk-row .dk-label + .dk-value { margin-left: 4px; }
+.dk-row .dk-mini { margin-left: auto; }
+.dk-small { font-size: 13px; color: var(--ink-soft); margin: 0 0 10px; }
+.dk-mini {
+  border: 2px solid var(--sky-deep); background: #fff; color: var(--ink); border-radius: 12px;
+  padding: 7px 14px; font-family: inherit; font-size: 16px; white-space: nowrap;
+}
+.dk-mini.on { background: var(--ink); border-color: var(--ink); color: #fff; }
+.dk-edit { margin-top: 8px; }
+.dk-select {
+  flex: 1 1 auto; min-width: 0; padding: 9px 10px; border: 2px solid var(--sky-deep); border-radius: 12px;
+  background: #fff; color: var(--ink); font-family: inherit; font-size: 17px;
+}
+.dk-hr { height: 0; border-top: 2px dashed var(--sky-deep); margin: 18px 0 12px; }
+.dk-left .dk-sub { margin-top: 10px; }
