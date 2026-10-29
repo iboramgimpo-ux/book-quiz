@@ -678,7 +678,8 @@
   const myDkBtn = document.getElementById('mydk-btn');
   const goalPill = document.getElementById('goal-pill');
   const GOALS = [10, 20, 30, 40, 50];
-  const QUIZ_N = 5;
+  const QUIZ_N = 5;      // 오늘 학습 퀴즈 문제 수
+  const GAME_N = 20;     // My DK Game 문제 수
   const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   const localKey = 'dk_daily_' + (studentId || '');
   const daily = { goal: 0, date: todayStr(), codes: [], celebrated: false, pending: false };
@@ -860,7 +861,7 @@
       gs.value = String(gameSel);
       gs.addEventListener('change', () => { gameSel = Number(gs.value); });
       const gb = el('button', 'dk-mini on', '게임 시작');
-      gb.addEventListener('click', () => { ov.remove(); startQuiz(gameGroups[Number(gs.value)].codes.slice(), false); });
+      gb.addEventListener('click', () => { ov.remove(); startQuiz(gameGroups[Number(gs.value)].codes.slice(), false, GAME_N); });
       gr.appendChild(gs); gr.appendChild(gb);
       box.appendChild(gr);
     }
@@ -945,10 +946,10 @@
     return { type: 'red', code, ans: text, boxes, opts: shuffle([text, ...ds]) };
   }
 
-  function buildQuiz(poolCodes) {
+  function buildQuiz(poolCodes, count) {
     const pool = shuffle(poolCodes.slice());
     const qs = [], used = {};
-    for (let i = 0; i < QUIZ_N; i++) {
+    for (let i = 0; i < count; i++) {
       const code = pool[i % pool.length];
       let q = null;
       for (const t of shuffle(['spell', 'listen', 'red'])) {
@@ -962,15 +963,26 @@
   }
 
   // ----- 퀴즈 화면 -----
-  function startQuiz(pool, saveResult) {
+  function startQuiz(pool, saveResult, count) {
+    count = count || QUIZ_N;                     // 오늘 퀴즈 5문제, Game은 20문제
     if (!pool || !pool.length) return;
     stopAllAudio(); autoMode = false; updateAutoBtn(); clearTimeout(advanceTimer); advanceTimer = null;
     const qa = new Audio();
     const playQ = (src) => { try { qa.pause(); qa.src = src; qa.currentTime = 0; const p = qa.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} };
     const ov = makeOverlay(); ov.classList.add('quiz');
-    const qs = buildQuiz(pool);
-    let qi = 0, score = 0;
-    const closeQuiz = () => { try { qa.pause(); } catch (e) {} ov.remove(); };
+    const qs = buildQuiz(pool, count);
+    let qi = 0, score = 0, answered = 0, savedAnswered = 0, savedScore = 0;
+    // 푼 문제 수 / 맞힌 문제 수를 누적 저장 (오늘 퀴즈 + Game 모두 합산, 중간에 닫아도 푼 만큼 반영)
+    function commit() {
+      const dS = answered - savedAnswered, dC = score - savedScore;
+      if (dS <= 0 || !progDocId) return;
+      savedAnswered = answered; savedScore = score;
+      db.collection('kv').doc(progDocId).set({
+        name: studentName, total: words.length, updatedAt: FV.serverTimestamp(),
+        quizSolved: FV.increment(dS), quizCorrect: FV.increment(dC),
+      }, { merge: true }).catch(() => { savedAnswered -= dS; savedScore -= dC; });
+    }
+    const closeQuiz = () => { commit(); try { qa.pause(); } catch (e) {} ov.remove(); };
 
     function speaker(src, big) {
       const b = el('button', 'qz-spk' + (big ? ' big' : ''), '🔊');
@@ -996,6 +1008,7 @@
 
       function onPick(btn, val, ok, reveal) {
         if (locked) return; locked = true;
+        answered++;
         optBtns.forEach(b => { b.disabled = true; if (b.dataset.v === q.ans) b.classList.add('ok'); });
         if (ok) { score++; msg.textContent = '정답이에요! 👏'; msg.className = 'qz-msg good'; }
         else { btn.classList.add('no'); msg.textContent = `아쉬워요! 정답은 "${q.ans}"`; msg.className = 'qz-msg bad'; }
@@ -1062,13 +1075,13 @@
 
     function finish() {
       try { qa.pause(); } catch (e) {}
-      if (saveResult) saveDaily({ quizScore: score, quizTotal: qs.length, quizDate: todayStr() });   // 오늘 학습 퀴즈의 가장 최근 결과만 관리자에게 저장 (Game은 저장 안 함)
+      commit();
       ov.innerHTML = '';
       const box = el('div', 'qz res');
       box.appendChild(el('div', 'dk-emoji', score >= 4 ? '🏆' : score >= 2 ? '👍' : '💪'));
       box.appendChild(el('p', 'dk-title', `${qs.length}문제 중 ${score}개 맞혔어요!`));
       const again = el('button', 'dk-btn', '다시 풀기');
-      again.addEventListener('click', () => { ov.remove(); startQuiz(pool, saveResult); });
+      again.addEventListener('click', () => { ov.remove(); startQuiz(pool, saveResult, count); });
       const done = el('button', 'dk-btn ghost', '닫기');
       done.addEventListener('click', closeQuiz);
       box.appendChild(again); box.appendChild(done);

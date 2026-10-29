@@ -124,7 +124,10 @@ const WORD_NAMES = {"ABOV":"above","ACCI":"accident","ACRO":"acrobat","ACT0":"ac
 function recordText(p) {
   const cyc = getCycle(p);
   if (cyc === null) return null;
-  const quiz = (typeof p.quizScore === "number" && p.quizTotal) ? " (퀴즈 " + p.quizScore + "/" + p.quizTotal + ")" : "";
+  // 퀴즈: 맞힌 개수 / 푼 개수 (오늘 퀴즈 + Game 누적). 예전 기록(quizScore)도 호환
+  const quiz = (typeof p.quizSolved === "number" && p.quizSolved > 0)
+    ? " (퀴즈 " + (p.quizCorrect || 0) + "/" + p.quizSolved + ")"
+    : ((typeof p.quizScore === "number" && p.quizTotal) ? " (퀴즈 " + p.quizScore + "/" + p.quizTotal + ")" : "");
   if (typeof p.maxIdx !== "number" || p.maxIdx < 0 || !p.lastWord) return cyc + "바퀴 - 아직 학습 기록 없음" + quiz;
   return cyc + "바퀴 - " + String(WORD_NAMES[p.lastWord] || p.lastWord).toLowerCase() + "까지 완료" + quiz;
 }
