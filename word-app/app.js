@@ -918,7 +918,13 @@
       }
       opts.add(d);
     }
-    return { type: 'spell', code, word: lw, start, len, ans, opts: shuffle([...opts]) };
+    // 그림 힌트: 카드 전체(단어 글씨가 보임)가 아니라 '그림 부분'만 잘라서 보여줌.
+    // 그림 영역이 제목·영문풀이 글씨와 겹치는 카드는 그림 없이 소리 힌트만 사용
+    const hs = hotspots[code], p = hs && hs.p;
+    const hit = (a, b) => Math.min(a[0] + a[2], b[0] + b[2]) > Math.max(a[0], b[0]) && Math.min(a[1] + a[3], b[1] + b[3]) > Math.max(a[1], b[1]);
+    const textBoxes = hs ? [hs.t, hs.d].concat((hs.r || []).map(e => e.slice(1, 5))).filter(Boolean) : [];
+    const pic = (p && !textBoxes.some(b => hit(p, b))) ? p : null;
+    return { type: 'spell', code, word: lw, start, len, ans, pic, opts: shuffle([...opts]) };
   }
 
   function listenQ(code) {
@@ -1027,9 +1033,20 @@
 
       let fillBlank = null;
       if (q.type === 'spell') {
-        box.appendChild(el('p', 'qz-q', '빈칸에 들어갈 철자를 골라요'));
-        const img = el('img', 'qz-thumb'); img.src = `assets/thumb/${q.code}.jpg`; img.alt = ''; img.draggable = false;
-        box.appendChild(img);
+        box.appendChild(el('p', 'qz-q', q.pic ? '그림을 보고 빈칸에 들어갈 철자를 골라요' : '소리를 듣고 빈칸에 들어갈 철자를 골라요'));
+        if (q.pic) {
+          const [px, py, pw, ph] = q.pic;
+          let ch = 150, cw = ch * pw / ph;
+          if (cw > 300) { cw = 300; ch = cw * ph / pw; }
+          const crop = el('div', 'qz-crop');
+          crop.style.width = cw + 'px'; crop.style.height = ch + 'px';
+          const img = el('img'); img.src = `assets/img/${q.code}.jpg`; img.alt = ''; img.draggable = false;
+          img.style.width = (CARD_W / pw * 100) + '%';
+          img.style.left = (-px / pw * 100) + '%';
+          img.style.top = (-py / ph * 100) + '%';
+          crop.appendChild(img);
+          box.appendChild(crop);
+        }
         const wd = el('div', 'qz-word');
         const slot = el('span', 'qz-blank', '');
         slot.style.minWidth = (q.len * 0.8 + 0.4) + 'em';

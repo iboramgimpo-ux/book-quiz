@@ -494,3 +494,6 @@ body {
 }
 .dk-hr { height: 0; border-top: 2px dashed var(--sky-deep); margin: 18px 0 12px; }
 .dk-left .dk-sub { margin-top: 10px; }
+
+.qz-crop { position: relative; overflow: hidden; margin: 0 auto 8px; border-radius: 12px; background: #fff; max-width: 100%; line-height: 0; }
+.qz-crop img { position: absolute; max-width: none; display: block; }
