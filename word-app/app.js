@@ -263,6 +263,7 @@
   let inPlayer = false;
   let wordDone = false;      // 이 카드에서 단어를 끝까지 들었는지
   let defDone = false;       // 이 카드에서 영영풀이를 끝까지 들었는지
+  let motionPlaying = false; // 움직이는 그림(영상/효과음)이 지금 재생 중인지 (그림을 다시 터치하면 멈추기 위해)
   let motionDone = true;     // 이 카드에서 움직이는 그림(+효과음)을 끝까지 봤는지 (움직임이 없는 단어는 처음부터 true)
   let autoMode = false;      // 자동재생(예전 방식) 켜짐 여부
   let token = 0;             // 재생 세션 토큰 (끼어들기/뒤로가기 경쟁상태 방지)
@@ -338,7 +339,14 @@
     clearTimeout(advanceTimer); advanceTimer = null;
     [audioW, audioD, audioR, audioS, motionVideo].forEach(a => { try { a.pause(); } catch (e) {} });
     hideMotionVisual();
+    motionPlaying = false;
     try { if ('speechSynthesis' in window) speechSynthesis.cancel(); } catch (e) {}
+  }
+  // 그림이 움직이는 중에 다시 터치하면 바로 멈추고, 원래 흐름(영영풀이 등)으로 이어감
+  function stopMotion() {
+    stopAllAudio();
+    motionDone = true;
+    afterPlay();
   }
 
   function hideMotionVisual() {
@@ -390,9 +398,11 @@
     const code = words[currentIndex], m = motion[code];
     if (!m) { motionDone = true; afterPlay(); return; }
     stopAllAudio();
+    motionPlaying = true;
     const my = token;
     const done = () => {
       if (my !== token) return;
+      motionPlaying = false;
       hideMotionVisual();
       motionDone = true;
       afterPlay();
@@ -582,7 +592,7 @@
     hsLayer.innerHTML = '';
     const h = hotspots[code];
     if (!h) return;
-    if (motion[code] && h.p) addHotspot(h.p, 4, 4, 'pic', '그림 다시 보기', () => playMotion());   // 그림을 터치하면 움직임+효과음 다시
+    if (motion[code] && h.p) addHotspot(h.p, 4, 4, 'pic', '그림 다시 보기', () => { if (motionPlaying) stopMotion(); else playMotion(); });   // 그림을 터치하면 움직임+효과음 다시
     addHotspot(h.t, 6, 6, 'blue', '단어 다시 듣기', () => playWord());
     addHotspot(h.d, 0, 3, 'def', '영영풀이 다시 듣기', () => playDef(true));
     h.r.forEach(entry => {
