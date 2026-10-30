@@ -371,13 +371,15 @@
     }, '👆 파란 단어를 터치하면 읽어줘요');
   }
 
-  function playDef() {
+  function playDef(byTouch) {
     stopAllAudio();
     const my = token, code = words[currentIndex];
     setStatus('영영풀이 읽는 중...');
     playMp3(audioD, `assets/audio/${code}_d.mp3`, () => {
       if (my !== token) return;
       defDone = true;
+      // 학생이 직접 영영풀이를 눌러서 들은 경우: 단어·그림 움직임 자동재생은 건너뜀 (그림은 학생이 터치할 때만 움직임)
+      if (byTouch === true) { wordDone = true; motionDone = true; }
       markLearned(code);          // 영영풀이를 끝까지 들었으면 (단어·그림 순서와 상관없이) 오늘 학습한 단어로 기록
       afterPlay();
     }, '👆 나팔 그림을 터치하면 읽어줘요');
@@ -582,7 +584,7 @@
     if (!h) return;
     if (motion[code] && h.p) addHotspot(h.p, 4, 4, 'pic', '그림 다시 보기', () => playMotion());   // 그림을 터치하면 움직임+효과음 다시
     addHotspot(h.t, 6, 6, 'blue', '단어 다시 듣기', () => playWord());
-    addHotspot(h.d, 0, 3, 'def', '영영풀이 다시 듣기', () => playDef());
+    addHotspot(h.d, 0, 3, 'def', '영영풀이 다시 듣기', () => playDef(true));
     h.r.forEach(entry => {
       addHotspot([entry[1], entry[2], entry[3], entry[4]], 3, 5, 'red', entry[0], () => playRed(entry));
     });
