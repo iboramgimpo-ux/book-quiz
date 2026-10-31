@@ -1,5 +1,5 @@
 {
-  "id": "./index.html?app=quiz",
+  "id": "/book-quiz/quiz-app",
   "name": "독서퀴즈",
   "short_name": "독서퀴즈",
   "start_url": "./index.html?app=quiz",
