@@ -3,7 +3,7 @@
   "name": "독서퀴즈",
   "short_name": "독서퀴즈",
   "start_url": "./index.html?app=quiz",
-  "scope": "./",
+  "scope": "./index.html",
   "display": "standalone",
   "orientation": "any",
   "background_color": "#e8f6f1",
