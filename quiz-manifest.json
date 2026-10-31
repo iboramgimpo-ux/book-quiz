@@ -1,0 +1,31 @@
+{
+  "id": "./index.html?app=quiz",
+  "name": "독서퀴즈",
+  "short_name": "독서퀴즈",
+  "start_url": "./index.html?app=quiz",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#e8f6f1",
+  "theme_color": "#14634f",
+  "icons": [
+    {
+      "src": "quiz-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "quiz-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "quiz-icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

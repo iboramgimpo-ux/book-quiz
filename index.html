@@ -5,6 +5,31 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>독서퀴즈 📚</title>
 
+<!-- 홈 화면 앱(PWA) 설치 -->
+<link rel="manifest" href="quiz-manifest.json?v=1">
+<meta name="theme-color" content="#14634f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="독서퀴즈">
+<link rel="icon" href="quiz-icon-192.png">
+<link rel="apple-touch-icon" href="quiz-icon-192.png">
+<script>
+  // 학생 링크(?student=...)는 학생마다 다르므로, 설치된 앱으로 열었을 때 주소에 학생 정보가 없으면
+  // 마지막으로 접속한 학생으로 복원합니다. (브라우저에서 관리자 주소로 들어가면 기억을 지워서 관리자 화면이 학생으로 바뀌지 않게 함)
+  (function () {
+    try {
+      var id = new URLSearchParams(location.search).get('student');
+      var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
+      if (id) localStorage.setItem('bq_last_student', id);
+      else if (standalone) {
+        var s = localStorage.getItem('bq_last_student');
+        if (s) history.replaceState(null, '', location.pathname + '?student=' + encodeURIComponent(s));
+      } else localStorage.removeItem('bq_last_student');
+    } catch (e) {}
+  })();
+  if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('quiz-sw.js').catch(function () {}); });
+</script>
+
 <!-- Firebase/폰트/cdnjs DNS 사전 연결 (iOS Safari 로딩 속도 개선) -->
 <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
 <link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
