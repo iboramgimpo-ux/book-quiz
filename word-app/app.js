@@ -36,7 +36,15 @@
 
   // ---------- 학생 식별 (관리자 페이지에서 만들어준 링크의 ?student= 값) ----------
   // 링크에 학생 값이 없거나, 등록되지 않은 값이면 단어장 대신 안내 화면만 보여줍니다.
-  const studentId = new URLSearchParams(location.search).get('student') || null;
+  // 학생 식별: 링크의 ?student=... 가 기본. 홈 화면 앱으로 열었는데 주소에 학생 정보가 없으면 마지막으로 접속한 학생으로 복원
+  const studentId = (() => {
+    let id = new URLSearchParams(location.search).get('student') || null;
+    try {
+      if (id) localStorage.setItem('dk_last_student', id);
+      else if (window.matchMedia && matchMedia('(display-mode: standalone)').matches) id = localStorage.getItem('dk_last_student') || null;
+    } catch (e) {}
+    return id;
+  })();
 
   function showGate(title, msg) {
     listView.classList.add('hidden');
