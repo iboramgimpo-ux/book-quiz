@@ -2,7 +2,7 @@
   "id": "/book-quiz/quiz-admin",
   "name": "독서퀴즈 관리자",
   "short_name": "독서퀴즈 관리",
-  "start_url": "./index.html?app=admin",
+  "start_url": "./index.html?app=admin&k=dpltuq4o1p",
   "scope": "./",
   "display": "standalone",
   "orientation": "any",

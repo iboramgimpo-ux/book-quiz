@@ -12,8 +12,10 @@
   (function () {
     var ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
     var isStudentPage = new URLSearchParams(location.search).get('student');
+    var hasAdminKey = new URLSearchParams(location.search).get('k') === 'dpltuq4o1p';
     // 학생 링크에서 설치 → 학생용 앱(마지막 학생 복원), 관리자 주소에서 설치 → 관리자용 앱(복원 안 함)
-    if (!ios) document.write('<link rel="manifest" href="' + (isStudentPage ? 'quiz-manifest.json?v=6' : 'quiz-admin-manifest.json?v=1') + '">');
+    // 학생 링크 → 학생용 설치 설정 / 관리자 열쇠(?k=...)가 있는 관리자 주소 → 관리자용 설치 설정 / 그 외(주소를 잘라낸 경우 등) → 설치 설정 없음
+    if (!ios && (isStudentPage || hasAdminKey)) document.write('<link rel="manifest" href="' + (isStudentPage ? 'quiz-manifest.json?v=6' : 'quiz-admin-manifest.json?v=2') + '">');
   })();
 </script>
 <meta name="theme-color" content="#14634f">
@@ -1119,6 +1121,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   if (studentId) {
     try { await initStudentPage(studentId); }
     catch(e) { console.error(e); showPage('forbidden-page'); }
+  } else if (params.get('k') !== 'dpltuq4o1p' && sessionStorage.getItem('admin-auth') !== ADMIN_PASSWORD) {
+    // 학생 링크의 뒷부분을 지워서 들어온 경우 등: 관리자 로그인 창을 보여주지 않음 (관리자 주소에는 ?k=열쇠 가 붙어 있음)
+    showPage('forbidden-page');
   } else {
     if (sessionStorage.getItem('admin-auth') === ADMIN_PASSWORD) {
       showPage('admin-page');
