@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>그림 단어장 - 학생 링크 관리</title>
+<!-- 홈 화면 앱 설치 (관리자용) -->
+<link rel="manifest" href="admin-manifest.json?v=1">
+<meta name="theme-color" content="#2b2a6b">
+<link rel="icon" href="admin-icon-192.png">
+<link rel="apple-touch-icon" href="admin-icon-192.png">
+<script>if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });</script>
 
 <!-- 폰트/Firebase/cdnjs DNS 사전 연결 (iOS Safari 로딩 속도 개선) -->
 <link rel="preconnect" href="https://fonts.googleapis.com" crossorigin>

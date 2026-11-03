@@ -1,0 +1,31 @@
+{
+  "id": "/book-quiz/word-app/dk-admin",
+  "name": "DK 단어장 관리자",
+  "short_name": "DK 관리자",
+  "start_url": "./admin.html",
+  "scope": "./admin.html",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#e8f3ff",
+  "theme_color": "#2b2a6b",
+  "icons": [
+    {
+      "src": "admin-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "admin-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "admin-icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
