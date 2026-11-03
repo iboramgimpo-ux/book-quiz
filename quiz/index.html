@@ -6,13 +6,12 @@
 <title>독서퀴즈 📚</title>
 
 <!-- 홈 화면 앱(PWA) 설치 -->
-<link rel="manifest" href="quiz-manifest.json?v=4">
 <script>
-  // 아이폰/아이패드: 설치 설정(manifest)의 시작 주소가 학생 링크 대신 쓰이면 관리자/빈 화면으로 열리므로,
-  // 아이폰에서는 manifest를 빼서 "홈 화면에 추가"한 그 순간의 주소(?student=...)가 그대로 저장되게 함
+  // 아이폰/아이패드에서는 manifest(설치 설정)를 아예 넣지 않음: manifest의 시작 주소가 학생 링크 대신 쓰여 관리자 화면으로 열리는 것을 막고,
+  // "홈 화면에 추가"한 그 순간의 주소(?student=...)가 그대로 저장되게 함. 안드로이드/PC는 그대로 설치 설정을 넣음.
   (function () {
     var ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    if (ios) { var l = document.querySelector('link[rel="manifest"]'); if (l) l.parentNode.removeChild(l); }
+    if (!ios) document.write('<link rel="manifest" href="quiz-manifest.json?v=5">');
   })();
 </script>
 <meta name="theme-color" content="#14634f">
