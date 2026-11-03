@@ -11,7 +11,14 @@
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <!-- 홈 화면 앱(PWA) -->
-<link rel="manifest" href="manifest.json?v=1">
+<script>
+  // 아이폰/아이패드에서는 manifest(설치 설정)를 아예 넣지 않음: manifest의 시작 주소가 학생 링크 대신 쓰여 관리자 화면으로 열리는 것을 막고,
+  // "홈 화면에 추가"한 그 순간의 주소(?student=...)가 그대로 저장되게 함. 안드로이드/PC는 그대로 설치 설정을 넣음.
+  (function () {
+    var ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (!ios) document.write('<link rel="manifest" href="manifest.json?v=2">');
+  })();
+</script>
 <script>
   if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); });
 </script>
@@ -27,7 +34,7 @@
 <link rel="dns-prefetch" href="https://www.gstatic.com">
 <link rel="dns-prefetch" href="https://firestore.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Gaegu:wght@400;700&display=swap">
-<link rel="stylesheet" href="style.css?v=8">
+<link rel="stylesheet" href="style.css?v=9">
 
 <!-- Firebase는 학생 환영 메시지에만 쓰여서 화면 렌더링을 막지 않도록 defer -->
 <script defer src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
@@ -86,6 +93,6 @@
   <audio id="audio-r" preload="auto"></audio>
   <audio id="audio-s" preload="auto"></audio>
 
-  <script defer src="app.js?v=8"></script>
+  <script defer src="app.js?v=9"></script>
 </body>
 </html>
