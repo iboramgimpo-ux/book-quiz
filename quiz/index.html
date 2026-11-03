@@ -7,6 +7,14 @@
 
 <!-- 홈 화면 앱(PWA) 설치 -->
 <link rel="manifest" href="quiz-manifest.json?v=4">
+<script>
+  // 아이폰/아이패드: 설치 설정(manifest)의 시작 주소가 학생 링크 대신 쓰이면 관리자/빈 화면으로 열리므로,
+  // 아이폰에서는 manifest를 빼서 "홈 화면에 추가"한 그 순간의 주소(?student=...)가 그대로 저장되게 함
+  (function () {
+    var ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    if (ios) { var l = document.querySelector('link[rel="manifest"]'); if (l) l.parentNode.removeChild(l); }
+  })();
+</script>
 <meta name="theme-color" content="#14634f">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
