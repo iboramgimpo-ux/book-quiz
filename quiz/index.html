@@ -11,7 +11,9 @@
   // "홈 화면에 추가"한 그 순간의 주소(?student=...)가 그대로 저장되게 함. 안드로이드/PC는 그대로 설치 설정을 넣음.
   (function () {
     var ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    if (!ios) document.write('<link rel="manifest" href="quiz-manifest.json?v=5">');
+    var isStudentPage = new URLSearchParams(location.search).get('student');
+    // 학생 링크에서 설치 → 학생용 앱(마지막 학생 복원), 관리자 주소에서 설치 → 관리자용 앱(복원 안 함)
+    if (!ios) document.write('<link rel="manifest" href="' + (isStudentPage ? 'quiz-manifest.json?v=6' : 'quiz-admin-manifest.json?v=1') + '">');
   })();
 </script>
 <meta name="theme-color" content="#14634f">
@@ -25,13 +27,14 @@
   // 마지막으로 접속한 학생으로 복원합니다. (브라우저에서 관리자 주소로 들어가면 기억을 지워서 관리자 화면이 학생으로 바뀌지 않게 함)
   (function () {
     try {
-      var id = new URLSearchParams(location.search).get('student');
+      var qs = new URLSearchParams(location.search);
+      var id = qs.get('student');
       var standalone = (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
       if (id) localStorage.setItem('bq_last_student', id);
-      else if (standalone) {
+      else if (standalone && qs.get('app') === 'quiz') {          // 학생용 앱 아이콘으로 열었을 때만 마지막 학생 복원
         var s = localStorage.getItem('bq_last_student');
         if (s) history.replaceState(null, '', location.pathname + '?student=' + encodeURIComponent(s));
-      } else localStorage.removeItem('bq_last_student');
+      }                                                              // 관리자 앱(?app=admin)이나 일반 접속은 복원하지 않음
     } catch (e) {}
   })();
   if ('serviceWorker' in navigator) window.addEventListener('load', function () { navigator.serviceWorker.register('quiz-sw.js').catch(function () {}); });
