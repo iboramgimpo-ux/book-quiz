@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="주소테스트">
+<title>주소 테스트</title>
+<style>body{font:16px/1.6 -apple-system,sans-serif;padding:24px;word-break:break-all}b{color:#c00}</style></head>
+<body><h2>주소 테스트</h2><div id="o"></div>
+<script>
+var n=+(localStorage.getItem('n')||0)+1;localStorage.setItem('n',n);
+document.getElementById('o').innerHTML=
+ '<p>현재 주소:<br><b>'+location.href+'</b></p>'+
+ '<p>앱으로 열림(standalone): <b>'+(navigator.standalone===true)+'</b></p>'+
+ '<p>저장 공간 열린 횟수: <b>'+n+'</b></p>';
+</script></body></html>
