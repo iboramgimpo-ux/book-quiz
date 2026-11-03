@@ -2,6 +2,20 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
+<script>
+  // 관리자 열쇠(?k=...)가 없는 주소(학생 링크를 잘라서 들어온 경우 등)에는 로그인 창도 보여주지 않음
+  (function () {
+    var ok = false;
+    try {
+      ok = new URLSearchParams(location.search).get('k') === 'dpltuq4o1p' || sessionStorage.getItem('wordapp-admin-key') === '1';
+      if (ok) sessionStorage.setItem('wordapp-admin-key', '1');
+    } catch (e) { ok = new URLSearchParams(location.search).get('k') === 'dpltuq4o1p'; }
+    if (!ok) {
+      document.write('<meta name="viewport" content="width=device-width,initial-scale=1"><body style="font-family:sans-serif;text-align:center;padding-top:30vh;color:#444"><div style="font-size:48px">\ud83d\udeab</div><h2>접근 권한이 없습니다</h2><p>받은 학생 링크로 들어와 주세요.</p></body>');
+      window.stop();
+    }
+  })();
+</script>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>그림 단어장 - 학생 링크 관리</title>
 <!-- 홈 화면 앱 설치 (관리자용) -->

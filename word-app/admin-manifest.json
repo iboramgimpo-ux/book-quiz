@@ -2,7 +2,7 @@
   "id": "/book-quiz/word-app/dk-admin",
   "name": "DK 단어장 관리자",
   "short_name": "DK 관리자",
-  "start_url": "./admin.html",
+  "start_url": "./admin.html?k=dpltuq4o1p",
   "scope": "./admin.html",
   "display": "standalone",
   "orientation": "any",
