@@ -3470,5 +3470,184 @@ function toast(msg,type,event) {
   toastTimer=setTimeout(()=>{el.className='';},2500);
 }
 </script>
+
+<!-- ===== 학생 화면: 뒤로가기 / 새로고침 보호 ===== -->
+<style>
+  /* 화면을 아래로 슥 당겨도 새로고침되지 않게 함 (안드로이드 크롬/설치된 앱) */
+  html, body { overscroll-behavior-y: none; }
+</style>
+<script>
+(function () {
+  var VIEWS = ['level', 'series', 'book', 'quiz', 'result', 'word', 'wordquiz', 'wordresult'];
+  // 뒤로가기를 눌렀을 때 가는 곳 / 화면의 깊이(=쌓아둘 기록 개수)
+  var PARENT = { series: 'level', book: 'series', quiz: 'book', word: 'book', wordquiz: 'word', result: 'book', wordresult: 'word' };
+  var DEPTH  = { level: 0, series: 1, book: 2, quiz: 3, word: 3, result: 3, wordquiz: 4, wordresult: 4 };
+  var STATE_KEY = 'bq_quiz_state', MAX_AGE = 6 * 3600 * 1000;
+
+  var inited = false, depth = 0, current = null, pending = null, pendingTimer = null;
+  var skipPop = false, exitArmed = false, exitTimer = null, restoredWordQuiz = false;
+
+  function $(id) { return document.getElementById(id); }
+  function activeView() {
+    for (var i = 0; i < VIEWS.length; i++) {
+      var el = $('sv-' + VIEWS[i]);
+      if (el && getComputedStyle(el).display !== 'none') return VIEWS[i];
+    }
+    return null;
+  }
+  function note(msg) { try { toast(msg); } catch (e) {} }
+
+  // ───────── 뒤로가기 처리 ─────────
+  function startNav() {
+    if (inited) return;
+    inited = true;
+    history.replaceState({ dk: 'base' }, '');   // 맨 아래 칸 (여기서 뒤로가면 사이트를 나감)
+    history.pushState({ dk: 0 }, '');           // 단계 선택 화면
+    depth = 0; current = activeView() || 'level';
+    setTimeout(maybeRestore, 700);
+  }
+
+  function onViewChange() {
+    if (!inited) return;
+    var v = activeView();
+    if (!v || v === current) return;
+    var prev = current; current = v;
+    // 퀴즈 화면을 벗어나면 저장해 둔 풀던 기록 삭제 (이어풀기 완료/포기)
+    if ((prev === 'quiz' || prev === 'wordquiz') && v !== 'quiz' && v !== 'wordquiz') clearState();
+    if (pending) {
+      if (v === pending) { pending = null; clearTimeout(pendingTimer); }
+      return;                                   // 뒤로가기로 이동한 경우는 기록을 건드리지 않음
+    }
+    var d = DEPTH[v];
+    if (d > depth) { for (var i = depth + 1; i <= d; i++) history.pushState({ dk: i }, ''); depth = d; }
+    else if (d < depth) { skipPop = true; history.go(d - depth); depth = d; }
+  }
+
+  function goTo(target) {
+    pending = target;
+    clearTimeout(pendingTimer);
+    pendingTimer = setTimeout(function () { pending = null; }, 2500);
+    if (target === 'book' && typeof currentSeriesId !== 'undefined' && currentSeriesId) { selectStudentSeries(currentSeriesId); }
+    else if (target === 'book') { pending = 'series'; showSV('series'); }
+    else if (target === 'series' && !(typeof currentLevelId !== 'undefined' && currentLevelId)) { pending = 'level'; showSV('level'); }
+    else showSV(target);
+  }
+
+  window.addEventListener('popstate', function (e) {
+    if (!inited) return;
+    if (skipPop) { skipPop = false; return; }
+    var st = e.state || {};
+    if (st.dk === 'base') {                     // 단계 선택 화면에서 뒤로가기 → "한 번 더" 안내 후 나감
+      if (exitArmed) { exitArmed = false; history.back(); return; }
+      exitArmed = true; note('뒤로가기를 한 번 더 누르면 나가요');
+      clearTimeout(exitTimer); exitTimer = setTimeout(function () { exitArmed = false; }, 2000);
+      history.pushState({ dk: 0 }, ''); depth = 0; return;
+    }
+    var cur = activeView() || current || 'level';
+    var target = PARENT[cur];
+    if (cur === 'wordquiz' && restoredWordQuiz) target = 'book';
+    if (!target) { history.pushState({ dk: 0 }, ''); return; }
+    // 풀던 퀴즈에서 뒤로가기 → 물어보기
+    if ((cur === 'quiz' || cur === 'wordquiz') && answeredCount(cur) > 0 && !isRevealed(cur)) {
+      if (!confirm('풀던 퀴즈가 있어요. 그만하고 나갈까요?')) {
+        history.pushState({ dk: DEPTH[cur] }, ''); depth = DEPTH[cur]; return;   // 취소 → 그 자리에 머무름
+      }
+    }
+    var actual = typeof st.dk === 'number' ? st.dk : DEPTH[target];
+    depth = actual;
+    if (DEPTH[target] < actual) { skipPop = true; history.go(DEPTH[target] - actual); depth = DEPTH[target]; }
+    goTo(target);
+  });
+
+  // ───────── 풀던 퀴즈 저장 / 이어풀기 ─────────
+  function answeredCount(v) {
+    try { return Object.keys(v === 'quiz' ? studentAnswers : wordQuizAnswers).length; } catch (e) { return 0; }
+  }
+  function isRevealed(v) { try { return v === 'quiz' ? quizRevealed : wordQuizRevealed; } catch (e) { return false; } }
+  function clearState() { try { localStorage.removeItem(STATE_KEY); } catch (e) {} }
+
+  function saveState() {
+    try {
+      var v = activeView();
+      if (v !== 'quiz' && v !== 'wordquiz') return;
+      if (isRevealed(v)) { clearState(); return; }
+      var base = { ts: Date.now(), studentId: currentStudentId, seriesId: currentSeriesId, seriesData: currentSeriesData,
+                   bookNum: currentBookNum, levelId: currentLevelId };
+      if (v === 'quiz') Object.assign(base, { type: 'book', quizData: currentQuizData, answers: studentAnswers, idx: currentQIdx });
+      else Object.assign(base, { type: 'word', questions: wordQuizQuestions, answers: wordQuizAnswers, idx: currentWQIdx,
+                                 wordbook: currentWordbook, trash: Array.from(currentWordTrashIds || []) });
+      localStorage.setItem(STATE_KEY, JSON.stringify(base));
+    } catch (e) {}
+  }
+
+  function wrap(name, after) {
+    var orig = window[name];
+    if (typeof orig !== 'function') return;
+    window[name] = function () {
+      var r = orig.apply(this, arguments);
+      if (r && typeof r.then === 'function') return r.then(function (x) { after(); return x; });
+      after(); return r;
+    };
+  }
+  wrap('renderQuestion', saveState);
+  wrap('renderWordQuestion', saveState);
+  wrap('submitQuiz', clearState);
+  wrap('submitWordQuiz', clearState);
+
+  function maybeRestore(tries) {
+    tries = tries || 0;
+    var raw = null, st = null;
+    try { raw = localStorage.getItem(STATE_KEY); st = raw ? JSON.parse(raw) : null; } catch (e) {}
+    if (!st) return;
+    if (typeof currentStudentId === 'undefined' || !currentStudentId) { if (tries < 30) setTimeout(function () { maybeRestore(tries + 1); }, 300); return; }
+    if (st.studentId !== currentStudentId || Date.now() - st.ts > MAX_AGE) { clearState(); return; }
+    var ov = document.createElement('div');
+    ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.7);display:flex;align-items:center;justify-content:center;padding:20px';
+    ov.innerHTML = '<div style="background:#161b3d;border:1px solid #3a4280;border-radius:18px;padding:24px;max-width:340px;width:100%;text-align:center;color:#fff">' +
+      '<div style="font-size:2rem;margin-bottom:6px">📝</div>' +
+      '<div style="font-size:1.1rem;font-weight:700;margin-bottom:6px">풀던 퀴즈가 있어요!</div>' +
+      '<div style="font-size:.9rem;opacity:.8;margin-bottom:16px">' + (st.idx + 1) + '번 문제까지 풀었어요.<br>이어서 풀까요?</div>' +
+      '<div style="display:flex;gap:10px"><button class="btn btn-secondary" id="dk-new" style="flex:1">새로 시작</button>' +
+      '<button class="btn btn-primary" id="dk-go" style="flex:1">이어서 풀기</button></div></div>';
+    document.body.appendChild(ov);
+    ov.querySelector('#dk-new').onclick = function () { clearState(); ov.remove(); };
+    ov.querySelector('#dk-go').onclick = function () { ov.remove(); restore(st); };
+  }
+
+  function restore(st) {
+    try {
+      currentSeriesId = st.seriesId; currentSeriesData = st.seriesData; currentBookNum = st.bookNum; currentLevelId = st.levelId;
+      var lv = st.levelId && typeof LEVELS !== 'undefined' && LEVELS[st.levelId] ? st.levelId + '단계 — ' + LEVELS[st.levelId].label : '';
+      ['bc-level-name', 'bc-level-name2', 'bc-level-name3', 'bc-level-name4', 'bc-level-name5'].forEach(function (id) { var e = $(id); if (e && lv) e.textContent = lv; });
+      var sname = st.seriesData ? st.seriesData.name : '';
+      if (st.type === 'book') {
+        currentQuizData = st.quizData; studentAnswers = st.answers || {}; quizRevealed = false;
+        if ($('bc-quiz-series')) $('bc-quiz-series').textContent = sname;
+        if ($('bc-quiz-book')) $('bc-quiz-book').textContent = st.bookNum + '권';
+        showSV('quiz'); renderQuestion(st.idx || 0);
+      } else {
+        currentWordbook = st.wordbook; currentWordTrashIds = new Set(st.trash || []);
+        wordQuizQuestions = st.questions; wordQuizAnswers = st.answers || {}; wordQuizRevealed = false;
+        restoredWordQuiz = true;
+        if ($('bc-word-series2')) $('bc-word-series2').textContent = sname;
+        if ($('bc-word-book2')) $('bc-word-book2').textContent = st.bookNum + '권';
+        showSV('wordquiz'); renderWordQuestion(st.idx || 0);
+      }
+    } catch (e) { clearState(); }
+  }
+
+  // ───────── 시작: 학생 화면이 열리면 감시 시작 ─────────
+  function watch() {
+    var mo = new MutationObserver(onViewChange);
+    VIEWS.forEach(function (v) { var el = $('sv-' + v); if (el) mo.observe(el, { attributes: true, attributeFilter: ['style', 'class'] }); });
+    var sp = $('student-page');
+    function check() { if (sp && sp.classList.contains('active')) startNav(); }
+    if (sp) { new MutationObserver(check).observe(sp, { attributes: true, attributeFilter: ['class'] }); check(); }
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', watch); else watch();
+  window.__dkNav = { startNav: startNav, saveState: saveState };   // 점검용
+})();
+</script>
+
 </body>
 </html>
