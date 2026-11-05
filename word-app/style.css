@@ -498,5 +498,6 @@ body {
 .qz-crop { position: relative; overflow: hidden; margin: 0 auto 8px; border-radius: 12px; background: #fff; max-width: 100%; line-height: 0; }
 .qz-crop img { position: absolute; max-width: none; display: block; }
 
-/* 영영풀이 재생 중에는 손가락으로 짚어도 빨간 단어·그림이 눌리지 않게 함 */
-body.def-playing .hs.red, body.def-playing .hs.pic { pointer-events: none; }
+/* 영영풀이 재생 중에는 손가락으로 짚어도 빨간 단어·그림이 반응하지 않게 함
+   (터치는 받되 무시 → 첫 줄 영영풀이 영역과 겹친 빨간 단어를 눌러도 영영풀이가 다시 시작되지 않음) */
+body.def-playing .hs.red:active, body.def-playing .hs.pic:active { background: transparent; }
