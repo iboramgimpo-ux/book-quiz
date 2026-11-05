@@ -707,7 +707,9 @@
   const GAME_N = 20;     // My DK Game 문제 수
   const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
   const localKey = 'dk_daily_' + (studentId || '');
-  const daily = { goal: 0, date: todayStr(), codes: [], celebrated: false, pending: false };
+  // batches: 목표를 달성할 때마다 쌓이는 회차 기록. [시작, 끝] = 오늘 학습한 단어 목록(codes)에서의 위치
+  // (예: 목표 10개로 아침·점심·저녁에 10개씩 하면 [0,10], [10,20], [20,30])
+  const daily = { goal: 0, date: todayStr(), codes: [], batches: [], lastEnd: 0, pending: false };
 
   (function loadDaily() {
     let loc = null;
@@ -718,46 +720,67 @@
     if (p.todayDate === t && Array.isArray(p.todayCodes)) p.todayCodes.forEach(c => set.add(c));
     if (loc && loc.date === t && Array.isArray(loc.codes)) loc.codes.forEach(c => set.add(c));
     daily.codes = [...set].filter(c => indexOfCode.has(c));
-    daily.celebrated = p.celebratedDate === t || !!(loc && loc.date === t && loc.celebrated);
+    const fromServer = (p.todayDate === t && Array.isArray(p.todayBatches)) ? p.todayBatches : [];
+    const fromLocal = (loc && loc.date === t && Array.isArray(loc.batches)) ? loc.batches : [];
+    const raw = fromLocal.length > fromServer.length ? fromLocal : fromServer;
+    daily.batches = raw.map(x => String(x).split('-').map(Number))
+      .filter(r => r.length === 2 && r[1] > r[0] && r[1] <= daily.codes.length);
+    // 예전 버전(하루 한 번 완료 표시) 기록과 호환
+    if (!daily.batches.length && daily.goal && daily.codes.length >= daily.goal
+        && (p.celebratedDate === t || (loc && loc.date === t && loc.celebrated))) {
+      daily.batches = [[daily.codes.length - daily.goal, daily.codes.length]];
+    }
+    daily.lastEnd = daily.batches.length ? daily.batches[daily.batches.length - 1][1] : 0;
   })();
 
+  // 퀴즈 범위: 선택한 회차에서 학습한 단어만
+  function batchPool(i) {
+    rollDay();
+    const b = daily.batches[i];
+    return b ? daily.codes.slice(b[0], b[1]) : [];
+  }
+
   function saveDaily(extra) {
+    const bs = daily.batches.map(b => b[0] + '-' + b[1]);
     queueSave(Object.assign({
-      dailyGoal: daily.goal, todayDate: daily.date, todayCodes: daily.codes.slice(),
-      celebratedDate: daily.celebrated ? daily.date : '',
+      dailyGoal: daily.goal, todayDate: daily.date, todayCodes: daily.codes.slice(), todayBatches: bs,
     }, extra || {}));
-    try { localStorage.setItem(localKey, JSON.stringify({ goal: daily.goal, date: daily.date, codes: daily.codes, celebrated: daily.celebrated })); } catch (e) {}
+    try { localStorage.setItem(localKey, JSON.stringify({ goal: daily.goal, date: daily.date, codes: daily.codes, batches: bs })); } catch (e) {}
   }
   function rollDay() {
     const t = todayStr();
-    if (daily.date !== t) { daily.date = t; daily.codes = []; daily.celebrated = false; }
+    if (daily.date !== t) { daily.date = t; daily.codes = []; daily.batches = []; daily.lastEnd = 0; }
   }
   function updateMyDkBtn() {
     rollDay();
+    const inB = daily.goal ? Math.min(Math.max(daily.codes.length - daily.lastEnd, 0), daily.goal) : 0;
     myDkBtn.innerHTML = '<span class="mydk-t">My DK</span>'
-      + (daily.goal ? '<span class="mydk-c">' + Math.min(daily.codes.length, daily.goal) + '/' + daily.goal + '</span>' : '');
-    // 단어 학습 화면 상단의 오늘 학습 개수 표시 (보기만 할 뿐, 자동재생에는 영향 없음)
+      + (daily.goal ? '<span class="mydk-c">' + inB + '/' + daily.goal + '</span>' : '');
+    // 단어 학습 화면 상단의 목표 개수 표시 (보기만 할 뿐, 자동재생에는 영향 없음)
     if (!daily.goal) goalPill.classList.add('hidden');
     else {
-      const done = daily.codes.length >= daily.goal;
+      const fresh = daily.batches.length > 0 && inB === 0;     // 방금 한 회차를 끝낸 상태
       goalPill.classList.remove('hidden');
-      goalPill.classList.toggle('done', done);
-      goalPill.textContent = '오늘 ' + Math.min(daily.codes.length, daily.goal) + '/' + daily.goal + (done ? ' ✓' : '');
+      goalPill.classList.toggle('done', fresh);
+      goalPill.textContent = '목표 ' + inB + '/' + daily.goal + (daily.batches.length ? ' · ' + daily.batches.length + '회 완료' : '');
     }
   }
   updateMyDkBtn();
 
-  // 카드 하나를 끝까지 학습하면(단어→영영풀이까지) 오늘 학습한 단어로 기록
+  // 카드 하나를 끝까지 학습하면(단어→영영풀이까지) 오늘 학습한 단어로 기록하고, 목표 개수가 찰 때마다 한 회차 완료
   function markLearned(code) {
     rollDay();
     if (!daily.codes.includes(code)) { daily.codes.push(code); saveDaily(); }
     updateMyDkBtn();
-    if (daily.goal && !daily.celebrated && daily.codes.length >= daily.goal) {
-      daily.celebrated = true; saveDaily();
+    if (daily.goal && daily.codes.length - daily.lastEnd >= daily.goal) {
+      const end = daily.codes.length;
+      daily.batches.push([end - daily.goal, end]); daily.lastEnd = end;
+      saveDaily(); updateMyDkBtn();
       // 자동재생 중에는 끊지 않고 계속 재생 → 자동재생을 끄거나 목록으로 나갈 때 안내를 띄움
       if (inPlayer && autoMode) daily.pending = true; else showDoneModal();
     }
   }
+
 
   // ----- 공통 팝업 틀 -----
   function makeOverlay() {
@@ -865,16 +888,39 @@
         box.appendChild(er);
       }
 
-      // 오늘 진행 + (목표 달성 시) 오늘 퀴즈
+      // 이번 목표 진행 + 회차별 퀴즈
       const n = daily.codes.length, g = daily.goal;
-      box.appendChild(el('p', 'dk-sub', `오늘 학습한 단어 ${n}개 / 목표 ${g}개`));
+      const inB = Math.min(Math.max(n - daily.lastEnd, 0), g);
+      box.appendChild(el('p', 'dk-sub', `이번 목표 ${inB}/${g}개 · 오늘 총 ${n}개 · 목표 달성 ${daily.batches.length}회`));
       const bar = el('div', 'dk-bar'); const fill = el('i'); bar.appendChild(fill);
-      fill.style.width = Math.min(100, g ? n / g * 100 : 0) + '%';
+      fill.style.width = Math.min(100, g ? inB / g * 100 : 0) + '%';
       box.appendChild(bar);
-      if (g && n >= g) {
-        const qb = el('button', 'dk-btn', '오늘 퀴즈 풀러 가기');
-        qb.addEventListener('click', () => { ov.remove(); startQuiz(daily.codes.slice(), true); });
-        box.appendChild(qb);
+      if (daily.batches.length) {
+        box.appendChild(el('p', 'dk-label', '목표 달성 퀴즈'));
+        const qr = el('div', 'dk-row dk-edit');
+        const qs = el('select', 'dk-select');
+        for (let i = daily.batches.length - 1; i >= 0; i--) {
+          const b = daily.batches[i];
+          const o = el('option', null, `${i + 1}회차 (오늘 ${b[0] + 1}~${b[1]}번째 단어)`); o.value = i; qs.appendChild(o);
+        }
+        qs.value = String(daily.batches.length - 1);
+        const qb = el('button', 'dk-mini on', '퀴즈 풀러 가기');
+        qb.addEventListener('click', () => { ov.remove(); startQuiz(batchPool(Number(qs.value)), true); });
+        qr.appendChild(qs); qr.appendChild(qb); box.appendChild(qr);
+      }
+      // 오늘 학습한 단어 목록 (회차별로 구분)
+      if (n > 0) {
+        const lb = el('button', 'dk-mini', '오늘 학습한 단어 보기 (' + n + '개)');
+        const lst = el('div', 'dk-list hidden');
+        const line = (title, list) => {
+          const d = el('div', 'dk-batch'); d.appendChild(el('b', null, title + ' '));
+          d.appendChild(document.createTextNode(list.map(nameOf).join(', '))); lst.appendChild(d);
+        };
+        daily.batches.forEach((b, i) => line((i + 1) + '회차', daily.codes.slice(b[0], b[1])));
+        const rest = daily.codes.slice(daily.lastEnd);
+        if (rest.length) line('진행 중', rest);
+        lb.addEventListener('click', () => lst.classList.toggle('hidden'));
+        box.appendChild(lb); box.appendChild(lst);
       }
 
       // 3) Game
@@ -894,19 +940,21 @@
   }
   let gameSel = 0;
   myDkBtn.addEventListener('click', openMyDk);
-  goalPill.addEventListener('click', () => { if (daily.goal && daily.codes.length >= daily.goal) showDoneModal(); });
+  goalPill.addEventListener('click', () => { if (daily.batches.length) showDoneModal(); });
 
-  // 목표를 채웠을 때 나오는 안내
+  // 목표를 채울 때마다(회차마다) 나오는 안내: 방금 끝낸 회차의 단어로 퀴즈
   function showDoneModal() {
     daily.pending = false;
+    if (!daily.batches.length) return;
     stopAllAudio();
+    const idx = daily.batches.length - 1, size = batchPool(idx).length;
     const ov = makeOverlay();
     const box = el('div', 'dk-box');
     box.appendChild(el('div', 'dk-emoji', '🎉'));
-    box.appendChild(el('p', 'dk-title', '오늘 학습 완료!'));
-    box.appendChild(el('p', 'dk-sub', `오늘 ${daily.codes.length}개 단어를 학습했어요`));
+    box.appendChild(el('p', 'dk-title', '목표 학습 완료!'));
+    box.appendChild(el('p', 'dk-sub', `${idx + 1}번째 목표 · ${size}개 단어를 학습했어요`));
     const go = el('button', 'dk-btn', '퀴즈 풀러 가기');
-    go.addEventListener('click', () => { ov.remove(); startQuiz(daily.codes.slice(), true); });
+    go.addEventListener('click', () => { ov.remove(); startQuiz(batchPool(idx), true); });
     const later = el('button', 'dk-btn ghost', '나중에 할게요');
     later.addEventListener('click', () => ov.remove());
     box.appendChild(go); box.appendChild(later);
