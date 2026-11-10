@@ -1042,14 +1042,15 @@
   }
 
   // ----- 퀴즈 화면 -----
-  function startQuiz(pool, saveResult, count) {
+  function startQuiz(pool, saveResult, count, presetQs) {
     count = count || QUIZ_N;                     // 오늘 퀴즈 5문제, Game은 20문제
     if (!pool || !pool.length) return;
     stopAllAudio(); autoMode = false; updateAutoBtn(); clearTimeout(advanceTimer); advanceTimer = null;
     const qa = new Audio();
     const playQ = (src) => { try { qa.pause(); qa.src = src; qa.currentTime = 0; const p = qa.play(); if (p && p.catch) p.catch(() => {}); } catch (e) {} };
     const ov = makeOverlay(); ov.classList.add('quiz');
-    const qs = buildQuiz(pool, count);
+    const qs = presetQs ? presetQs.map(q => Object.assign({}, q, { opts: shuffle(q.opts) })) : buildQuiz(pool, count);
+    const wrong = [];      // 이번 판에서 틀린 문제
     let qi = 0, score = 0, answered = 0, savedAnswered = 0, savedScore = 0;
     // 푼 문제 수 / 맞힌 문제 수를 누적 저장 (오늘 퀴즈 + Game 모두 합산, 중간에 닫아도 푼 만큼 반영)
     function commit() {
@@ -1090,7 +1091,7 @@
         answered++;
         optBtns.forEach(b => { b.disabled = true; if (b.dataset.v === q.ans) b.classList.add('ok'); });
         if (ok) { score++; msg.textContent = '정답이에요! 👏'; msg.className = 'qz-msg good'; }
-        else { btn.classList.add('no'); msg.textContent = `아쉬워요! 정답은 "${q.ans}"`; msg.className = 'qz-msg bad'; }
+        else { wrong.push(q); btn.classList.add('no'); msg.textContent = `아쉬워요! 정답은 "${q.ans}"`; msg.className = 'qz-msg bad'; }
         if (reveal) reveal();
         next.classList.remove('hidden');
       }
@@ -1170,11 +1171,16 @@
       const box = el('div', 'qz res');
       box.appendChild(el('div', 'dk-emoji', score >= 4 ? '🏆' : score >= 2 ? '👍' : '💪'));
       box.appendChild(el('p', 'dk-title', `${qs.length}문제 중 ${score}개 맞혔어요!`));
-      const again = el('button', 'dk-btn', '다시 풀기');
-      again.addEventListener('click', () => { ov.remove(); startQuiz(pool, saveResult, count); });
+      if (wrong.length) {
+        const retry = el('button', 'dk-btn', `틀린 문제 다시 풀기 (${wrong.length}개)`);
+        retry.addEventListener('click', () => { ov.remove(); startQuiz(pool, saveResult, count, wrong.slice()); });
+        box.appendChild(retry);
+      }
+      const fresh = el('button', 'dk-btn' + (wrong.length ? ' ghost' : ''), '새로운 문제 풀기');
+      fresh.addEventListener('click', () => { ov.remove(); startQuiz(pool, saveResult, count); });
       const done = el('button', 'dk-btn ghost', '닫기');
       done.addEventListener('click', closeQuiz);
-      box.appendChild(again); box.appendChild(done);
+      box.appendChild(fresh); box.appendChild(done);
       ov.appendChild(box);
     }
     render();
