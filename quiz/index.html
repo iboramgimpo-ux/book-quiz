@@ -396,7 +396,7 @@ window.addEventListener('load', repositionTabbar);
 
 <div id="admin-page" class="page">
   <header class="app-header">
-    <div class="app-logo">📚 독서<span>퀴즈</span> <small style="font-size:.7rem;color:var(--text-dim)">관리자 · v1110b</small></div>
+    <div class="app-logo">📚 독서<span>퀴즈</span> <small style="font-size:.7rem;color:var(--text-dim)">관리자 · v1110d</small></div>
     <button class="btn btn-secondary btn-sm" onclick="adminLogout()">로그아웃</button>
   </header>
   <div class="admin-layout">
@@ -2126,6 +2126,7 @@ function looksTruncated(t) {
   if (t.length < 12) return false;                 // 짧은 단어형 보기는 제외
   if (/[.!?…。]["'”’)\]]*$/.test(t)) return false;  // 문장부호로 끝남
   if (/[다요죠음함임됨까네군]$/.test(t)) return false; // 흔한 한국어 종결
+  if (/(때문에|서)$/.test(t)) return false; // '때문에', '~서'로 끝나면 정상으로 간주
   if (/["'”’)\]]$/.test(t)) return false;
   return true;
 }
