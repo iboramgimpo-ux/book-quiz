@@ -1051,16 +1051,27 @@
     const ov = makeOverlay(); ov.classList.add('quiz');
     const qs = presetQs ? presetQs.map(q => Object.assign({}, q, { opts: shuffle(q.opts) })) : buildQuiz(pool, count);
     const wrong = [];      // 이번 판에서 틀린 문제
+    const isRetry = !!presetQs;   // '틀린 문제 다시 풀기'는 기록(푼 개수/맞힌 개수)에 넣지 않음
     let qi = 0, score = 0, answered = 0, savedAnswered = 0, savedScore = 0;
-    // 푼 문제 수 / 맞힌 문제 수를 누적 저장 (오늘 퀴즈 + Game 모두 합산, 중간에 닫아도 푼 만큼 반영)
+    // 푼 문제 수 / 맞힌 문제 수를 '가장 최근 하루' 기준으로 저장 (오늘 퀴즈 + Game 합산, 중간에 닫아도 푼 만큼 반영)
+    // 날짜가 바뀌면 새로 0부터 시작하고, 같은 날이면 계속 더함
     function commit() {
       const dS = answered - savedAnswered, dC = score - savedScore;
-      if (dS <= 0 || !progDocId) return;
+      if (dS <= 0 || !progDocId || isRetry) return;
       savedAnswered = answered; savedScore = score;
-      db.collection('kv').doc(progDocId).set({
-        name: studentName, total: words.length, updatedAt: FV.serverTimestamp(),
-        quizSolved: FV.increment(dS), quizCorrect: FV.increment(dC),
-      }, { merge: true }).catch(() => { savedAnswered -= dS; savedScore -= dC; });
+      const ref = db.collection('kv').doc(progDocId);
+      const day = todayStr();
+      db.runTransaction(async (tx) => {
+        const snap = await tx.get(ref);
+        const d = snap.exists ? snap.data() : {};
+        const sameDay = d.quizDay === day;
+        tx.set(ref, {
+          name: studentName, total: words.length, updatedAt: FV.serverTimestamp(),
+          quizDay: day,
+          quizDaySolved: (sameDay ? (d.quizDaySolved || 0) : 0) + dS,
+          quizDayCorrect: (sameDay ? (d.quizDayCorrect || 0) : 0) + dC,
+        }, { merge: true });
+      }).catch(() => { savedAnswered -= dS; savedScore -= dC; });
     }
     const closeQuiz = () => { commit(); try { qa.pause(); } catch (e) {} ov.remove(); };
 
@@ -1170,7 +1181,7 @@
       ov.innerHTML = '';
       const box = el('div', 'qz res');
       box.appendChild(el('div', 'dk-emoji', score >= 4 ? '🏆' : score >= 2 ? '👍' : '💪'));
-      box.appendChild(el('p', 'dk-title', `${qs.length}문제 중 ${score}개 맞혔어요!`));
+      box.appendChild(el('p', 'dk-title', isRetry ? `틀렸던 ${qs.length}문제 중 ${score}개 맞혔어요!` : `${qs.length}문제 중 ${score}개 맞혔어요!`));
       if (wrong.length) {
         const retry = el('button', 'dk-btn', `틀린 문제 다시 풀기 (${wrong.length}개)`);
         retry.addEventListener('click', () => { ov.remove(); startQuiz(pool, saveResult, count, wrong.slice()); });
