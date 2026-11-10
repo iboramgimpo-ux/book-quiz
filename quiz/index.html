@@ -548,10 +548,14 @@ A. Library  B. Park  C. Museum  D. School
           <div class="card">
             <div class="card-header">
               <strong>등록된 퀴즈</strong>
-              <select class="form-select" id="quiz-filter-series" style="width:200px" onchange="loadQuizList()">
-                <option value="">전체 시리즈</option>
-              </select>
+              <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+                <button class="btn btn-secondary btn-sm" onclick="checkTruncatedQuizzes()">🔍 잘린 문제 점검</button>
+                <select class="form-select" id="quiz-filter-series" style="width:200px" onchange="loadQuizList()">
+                  <option value="">전체 시리즈</option>
+                </select>
+              </div>
             </div>
+            <div id="quiz-check-result" style="display:none"></div>
             <div id="quiz-list-wrap"><div class="empty-state"><div class="empty-icon">📝</div>등록된 퀴즈가 없습니다</div></div>
           </div>
         </div>
@@ -1984,7 +1988,7 @@ function parseQuizText(text) {
     return m.length >= 3;
   };
 
-  let blocks=[], cur=null;
+  let blocks=[], cur=null, lastOpt=null;
   for (const line of lines) {
     if (isAnswerKeyLine(line)) continue; // 정답 키 줄 스킵
 
@@ -1992,14 +1996,14 @@ function parseQuizText(text) {
     const qm = line.match(/^(\d+)\s*[\.\)]\s+(.+)/);
     if (qm && parseInt(qm[1])>=1) {
       if (cur) blocks.push(cur);
-      cur = {num:parseInt(qm[1]),text:qm[2],options:{}};
+      cur = {num:parseInt(qm[1]),text:qm[2],options:{}}; lastOpt = null;
       continue;
     }
     if (!cur) continue;
 
     // 보기: "A." "A)" "(A)" "A " 시작
     const om = line.match(/^([ABCD])[\.\)]\s*(.+)/i) || line.match(/^\(([ABCD])\)\s*(.+)/i);
-    if (om) { cur.options[om[1].toUpperCase()] = om[2].trim(); continue; }
+    if (om) { lastOpt = om[1].toUpperCase(); cur.options[lastOpt] = om[2].trim(); continue; }
 
     // 한 줄에 보기 4개: "A. foo  B. bar  C. baz  D. qux"
     if (Object.keys(cur.options).length === 0) {
@@ -2012,6 +2016,7 @@ function parseQuizText(text) {
 
     // 문제 텍스트 이어붙이기 (보기가 아직 없을 때)
     if (Object.keys(cur.options).length === 0) cur.text += ' ' + line;
+    else if (lastOpt && cur.options[lastOpt] !== undefined) cur.options[lastOpt] += ' ' + line; // 줄바꿈된 보기 이어붙이기
   }
   if (cur) blocks.push(cur);
 
@@ -2113,6 +2118,57 @@ async function loadQuizList() {
       </tr>`;
     }).join('')}
   </tbody></table>`;
+}
+
+// ── 잘린 문제 점검: 보기/문제가 문장 끝처럼 보이지 않게 끝나는 항목을 모두 찾음
+function looksTruncated(t) {
+  t = String(t||'').trim();
+  if (t.length < 12) return false;                 // 짧은 단어형 보기는 제외
+  if (/[.!?…。]["'”’)\]]*$/.test(t)) return false;  // 문장부호로 끝남
+  if (/[다요죠음함임됨까네군]$/.test(t)) return false; // 흔한 한국어 종결
+  if (/["'”’)\]]$/.test(t)) return false;
+  return true;
+}
+async function checkTruncatedQuizzes() {
+  const box = document.getElementById('quiz-check-result');
+  box.style.display = 'block';
+  box.innerHTML = '<div style="padding:1rem">점검 중...</div>';
+  const snap = await db.collection('quizzes').get();
+  const rows = [];
+  let totalQuizzes = 0;
+  snap.forEach(d => {
+    totalQuizzes++;
+    const q = d.data(); const items = [];
+    (q.questions||[]).forEach((qq, i) => {
+      if (looksTruncated(qq.question)) items.push({n:i+1, label:'문제', text:qq.question});
+      ['A','B','C','D'].forEach(k => {
+        const v = qq.options && qq.options[k];
+        if (v && looksTruncated(v)) items.push({n:i+1, label:k, text:v});
+      });
+    });
+    if (items.length) rows.push({id:d.id, name:q.seriesName, book:q.bookNum, total:(q.questions||[]).length, items,
+      created: q.createdAt && (q.createdAt.toDate ? q.createdAt.toDate() : new Date(q.createdAt))});
+  });
+  rows.sort((a,b)=> (a.name||'') < (b.name||'') ? -1 : (a.name||'') > (b.name||'') ? 1 : a.book-b.book);
+  if (!rows.length) { box.innerHTML = `<div style="padding:1rem">✅ 전체 ${totalQuizzes}개 권호에서 잘린 것으로 보이는 문제가 없습니다.</div>`; return; }
+  const itemCount = rows.reduce((n,r)=>n+r.items.length,0);
+  box.innerHTML = `
+    <div style="padding:1rem;margin-bottom:.75rem;border:1px solid var(--warning);border-radius:10px">
+      ⚠ 전체 ${totalQuizzes}개 권호 중 <b>${rows.length}개 권호</b>, 의심 항목 ${itemCount}개<br>
+      <span style="font-size:.8rem;opacity:.8">문장이 끝나지 않은 채 끝나는 보기를 찾은 것입니다. 정상인 항목이 섞여 있을 수 있으니 확인 후 해당 권호 파일을 다시 업로드(교체)하세요.</span>
+    </div>
+    ${rows.map(r=>`
+      <div style="padding:.75rem 1rem;margin-bottom:.6rem;border:1px solid var(--border,#333);border-radius:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap">
+          <b>${escapeHtml(r.name||'')} ${r.book}권</b>
+          <span style="font-size:.78rem;opacity:.8">의심 ${r.items.length}개 / 전체 ${r.total}문제${r.created&&!isNaN(r.created)?' · 저장 '+r.created.toLocaleString('ko-KR'):''}
+            <button class="btn btn-secondary btn-sm" style="padding:.2rem .5rem;font-size:.72rem;margin-left:.4rem" data-quiz-id="${r.id}" onclick="openQuizPreview(this.dataset.quizId)">👁 열기</button></span>
+        </div>
+        <div style="font-size:.8rem;margin-top:.4rem;opacity:.85">
+          ${r.items.slice(0,6).map(it=>`<div>· ${it.n}번 ${it.label}: …${escapeHtml(it.text.slice(-24))}</div>`).join('')}
+          ${r.items.length>6?`<div>… 외 ${r.items.length-6}개</div>`:''}
+        </div>
+      </div>`).join('')}`;
 }
 
 async function deleteQuiz(id, label) {
