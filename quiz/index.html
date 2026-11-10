@@ -396,7 +396,7 @@ window.addEventListener('load', repositionTabbar);
 
 <div id="admin-page" class="page">
   <header class="app-header">
-    <div class="app-logo">📚 독서<span>퀴즈</span> <small style="font-size:.7rem;color:var(--text-dim)">관리자 · v1110d</small></div>
+    <div class="app-logo">📚 독서<span>퀴즈</span> <small style="font-size:.7rem;color:var(--text-dim)">관리자 · v1110e</small></div>
     <button class="btn btn-secondary btn-sm" onclick="adminLogout()">로그아웃</button>
   </header>
   <div class="admin-layout">
@@ -2132,6 +2132,7 @@ function looksTruncated(t) {
 }
 async function checkTruncatedQuizzes() {
   const box = document.getElementById('quiz-check-result');
+  if (box.style.display === 'block') { box.style.display = 'none'; return; } // 한 번 더 누르면 접기
   box.style.display = 'block';
   box.innerHTML = '<div style="padding:1rem">점검 중...</div>';
   const snap = await db.collection('quizzes').get();
