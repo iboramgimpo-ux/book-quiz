@@ -542,7 +542,7 @@
     codes.forEach(code => {
       const h = hotspots[code];
       if (!h) return;
-      const p = h.p || [0, 0, CARD_W, CARD_H];
+      const p = h.q || h.p || [0, 0, CARD_W, CARD_H];     // q = 팝업용 그림 영역(글씨가 안 섞이게 따로 지정), 없으면 기존 그림 영역
       const sc = Math.min(maxW / p[2], maxH / p[3], 2);
       const item = document.createElement('button');
       item.className = 'pop-item';
@@ -993,10 +993,10 @@
     }
     // 그림 힌트: 카드 전체(단어 글씨가 보임)가 아니라 '그림 부분'만 잘라서 보여줌.
     // 그림 영역이 제목·영문풀이 글씨와 겹치는 카드는 그림 없이 소리 힌트만 사용
-    const hs = hotspots[code], p = hs && hs.p;
+    const hs = hotspots[code], p = hs && (hs.q || hs.p);
     const hit = (a, b) => Math.min(a[0] + a[2], b[0] + b[2]) > Math.max(a[0], b[0]) && Math.min(a[1] + a[3], b[1] + b[3]) > Math.max(a[1], b[1]);
     const textBoxes = hs ? [hs.t, hs.d].concat((hs.r || []).map(e => e.slice(1, 5))).filter(Boolean) : [];
-    const pic = (p && !textBoxes.some(b => hit(p, b))) ? p : null;
+    const pic = (p && (hs.q || !textBoxes.some(b => hit(p, b)))) ? p : null;   // q가 있으면 글씨가 없는 영역이라 그대로 사용
     return { type: 'spell', code, word: lw, start, len, ans, pic, opts: shuffle([...opts]) };
   }
 
